@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Cap 65</title>
+  <meta name="description" content="Suivi calories, protéines, cardio et poids : cap sur 65 kg.">
+  <meta name="theme-color" content="#FBF7F4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141217" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Cap 65">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="screen" class="screen" aria-live="polite"></main>
+
+  <nav class="tabbar" aria-label="Navigation principale">
+    <button class="tab" data-tab="today" aria-label="Aujourd'hui">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v4.8l3 1.8"/></svg>
+      <span>Aujourd'hui</span>
+    </button>
+    <button class="tab" data-tab="foods" aria-label="Mes aliments">
+      <svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></svg>
+      <span>Aliments</span>
+    </button>
+    <button class="tab" data-tab="defi" aria-label="Défi de la semaine">
+      <svg viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 6H4.5a2.5 2.5 0 0 0 2.6 3.5M17 6h2.5a2.5 2.5 0 0 1-2.6 3.5M12 14v3M8.5 20h7l-.8-3H9.3z"/></svg>
+      <span>Défi</span>
+    </button>
+    <button class="tab" data-tab="weight" aria-label="Poids">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="5"/><path d="M9 9.5a4 4 0 0 1 6 0M12 9.8l1.3-1.6"/></svg>
+      <span>Poids</span>
+    </button>
+    <button class="tab" data-tab="duo" aria-label="Idées repas à deux">
+      <svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
+      <span>À deux</span>
+    </button>
+  </nav>
+
+  <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
+  <section id="sheet" class="sheet" role="dialog" aria-modal="true" hidden></section>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
