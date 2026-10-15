@@ -1,11 +1,13 @@
 /* Cap 65 : service worker (hors ligne). Incrémente VERSION à chaque mise à jour. */
-const VERSION = 'cap65-v4';
+const VERSION = 'cap65-v5';
 const ASSETS = [
   './',
   'index.html',
   'styles.css',
   'data.js',
+  'data-plus.js',
   'illus.js',
+  'features.js',
   'app.js',
   'manifest.json',
   'fonts/nunito.woff2',

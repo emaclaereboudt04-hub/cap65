@@ -75,6 +75,10 @@ function freshState() {
     quotas: {},
     celebrated: {},
     recipes: [],
+    measures: [],
+    plan: {},
+    shop: {},
+    cycle: { enabled: false, hormonal: false, len: 28, plen: 5, starts: [], sym: {} },
     sport: { adjust: 0, days: {}, hist: {}, live: null },
   };
 }
@@ -84,7 +88,7 @@ function load() {
     if (!raw) return freshState();
     const s = JSON.parse(raw);
     const base = freshState();
-    return { ...base, ...s, settings: { ...base.settings, ...(s.settings || {}) }, sport: { ...base.sport, ...(s.sport || {}) }, recipes: s.recipes || [] };
+    return { ...base, ...s, settings: { ...base.settings, ...(s.settings || {}) }, sport: { ...base.sport, ...(s.sport || {}) }, recipes: s.recipes || [], measures: s.measures || [], plan: s.plan || {}, shop: s.shop || {}, cycle: { ...base.cycle, ...(s.cycle || {}) } };
   } catch (e) {
     return freshState();
   }
@@ -95,7 +99,7 @@ function save() {
 }
 save();
 
-const ui = { tab: 'today', day: todayKey(), foodQuery: '', repas: 'foods', baseQuery: '', baseCat: '', justDone: new Set() };
+const ui = { tab: 'today', day: todayKey(), foodQuery: '', repas: 'foods', suivi: 'poids', shopWeek: 'this', baseQuery: '', baseCat: '', justDone: new Set() };
 
 /* ---------------- Calculs ---------------- */
 function dayOf(k) { return S.days[k] || { meals: [], cardio: [], water: 0 }; }
@@ -157,6 +161,7 @@ function catalogItem(key) {
   const [t, id] = [key.slice(0, 1), key.slice(2)];
   if (t === 'f') { const f = S.foods.find((x) => x.id === id); return f && { name: f.name, portion: f.portion, kcal: f.kcal, prot: f.prot, ecart: f.ecart || null }; }
   if (t === 'r') { const r = S.recipes.find((x) => x.id === id); return r && { name: r.name, portion: 'ma part', kcal: r.kcal, prot: r.prot, ecart: null, moment: r.moment }; }
+  if (t === 's') { const d = SOLO_RECIPES.find((x) => x.id === id); return d && { name: d.name, portion: 'ma portion', kcal: d.kcal, prot: d.prot, ecart: null, moment: d.moment }; }
   if (t === 'd') { const d = DISHES.find((x) => x.id === id); return d && { name: d.name, portion: 'ma portion', kcal: d.kcal, prot: d.prot, ecart: null, moment: d.moment }; }
   if (t === 'b') { const b = BASE[+id]; return b && { name: b[1], portion: b[2], kcal: b[3], prot: b[4], ecart: b[5] || null }; }
   return null;
@@ -165,7 +170,7 @@ function searchCatalog(q) {
   return {
     foods: S.foods.filter((f) => matches(q, f.name, f.portion)).map((f) => ['f:' + f.id, f]),
     recipes: S.recipes.filter((r) => matches(q, r.name)).map((r) => ['r:' + r.id, r]),
-    dishes: DISHES.filter((d) => matches(q, d.name, d.desc)).map((d) => ['d:' + d.id, d]),
+    dishes: [...SOLO_RECIPES.map((d) => ['s:' + d.id, d]), ...DISHES.map((d) => ['d:' + d.id, d])].filter(([, d]) => matches(q, d.name, d.desc)),
     base: BASE.map((b, i) => [i, b]).filter(([, b]) => matches(q, b[1], b[2], b[0])).map(([i]) => ['b:' + i, catalogItem('b:' + i)]),
   };
 }
@@ -229,6 +234,12 @@ function sparks(el) {
 }
 
 /* ---------------- Navigation ---------------- */
+function goTo(target) {
+  const [t, sub] = target.split(':');
+  if (t === 'suivi') ui.suivi = sub || 'poids';
+  if (t === 'repas' && sub) ui.repas = sub;
+  go(t);
+}
 function go(tab) {
   ui.tab = tab;
   $$('.tab').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
@@ -239,7 +250,7 @@ $$('.tab').forEach((b) => b.addEventListener('click', () => go(b.dataset.tab)));
 
 function render() {
   const screen = $('#screen');
-  ({ today: renderToday, repas: renderRepas, sport: renderSport, defi: renderDefi, weight: renderWeight }[ui.tab])(screen);
+  ({ today: renderToday, repas: renderRepas, sport: renderSport, defi: renderDefi, suivi: renderSuivi }[ui.tab])(screen);
 }
 
 /* =========================================================
@@ -274,7 +285,7 @@ function renderToday(el) {
       banners += `<button class="banner" data-go="sport"><span class="b-emoji">${s.e}</span><span>Aujourd'hui : séance ${s.title.toLowerCase()} !</span><span class="b-go">›</span></button>`;
     });
     if ((wd === 5 || wd === 6 || wd === 0) && !weighed) {
-      banners += `<button class="banner" data-go="weight"><span class="b-emoji">⚖️</span><span>${wd === 5 ? "C'est vendredi : petite pesée ce matin ?" : 'Pas encore de pesée cette semaine'}</span><span class="b-go">›</span></button>`;
+      banners += `<button class="banner" data-go="suivi:poids"><span class="b-emoji">⚖️</span><span>${wd === 5 ? "C'est vendredi : petite pesée ce matin ?" : 'Pas encore de pesée cette semaine'}</span><span class="b-go">›</span></button>`;
     }
   }
 
@@ -325,7 +336,7 @@ function renderToday(el) {
       </div>
       <button class="icon-btn" data-day="1" aria-label="Jour suivant">›</button>
     </div>
-    ${banners}
+    ${banners}${isToday ? cycleChip() : ''}
     <div class="card ring-card">
       <div class="ring-wrap">
         <svg viewBox="0 0 220 220" aria-hidden="true">
@@ -349,6 +360,7 @@ function renderToday(el) {
       <div class="bar-head" style="margin:14px 0 0"><strong class="small muted">${st.w >= 1 ? `Écarts semaine ${st.w}` : 'Écarts (rodage)'}</strong><div class="tokens">${tokens}</div></div>
     </div>
     <div class="card" id="water">${waterInner(k)}</div>
+    ${isToday && plannedToday().length ? `<div class="card"><h2>🗓️ Prévu aujourd'hui</h2>${plannedToday().map(({ d, key }) => `<div class="plan-today"><span>${esc(d.e || '🍽️')} ${esc(d.name)} <small class="muted">· ${nf(d.kcal)} kcal</small></span><button class="btn btn-sm btn-soft" data-plan-add="${key}">＋ Ajouter</button></div>`).join('')}</div>` : ''}
     <div class="actions">
       <button class="btn btn-primary" data-add="meal">＋ Repas</button>
       <button class="btn btn-soft" data-add="cardio">＋ Cardio</button>
@@ -365,7 +377,8 @@ function renderToday(el) {
     ui.day = n === 0 ? todayKey() : addDays(ui.day, n);
     render();
   }));
-  $$('[data-go]', el).forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
+  $$('[data-go]', el).forEach((b) => b.addEventListener('click', () => goTo(b.dataset.go)));
+  $$('[data-plan-add]', el).forEach((b) => b.onclick = () => openQuickAdd(catalogItem(b.dataset.planAdd)));
   bindWater($('#water', el), k);
   $('[data-add="meal"]', el).addEventListener('click', () => openMealSheet());
   $('[data-add="cardio"]', el).addEventListener('click', openCardioSheet);
@@ -463,7 +476,7 @@ function openMealSheet() {
         <p class="field-hint" style="text-align:center">🔎 Tape un nom pour chercher aussi dans la base de ${BASE.length} plats et dans les recettes.</p>`;
     }
     const sec = (title, arr, max = 40) => arr.length ? `<div class="moment-head" style="padding-top:12px"><span>${title}</span><span>${arr.length}</span></div><div class="list">${arr.slice(0, max).map(row).join('')}</div>` : '';
-    const html = sec('Ma liste', r.foods) + sec('Mes recettes', r.recipes) + sec('Idées à deux', r.dishes) + sec('Base de plats', r.base);
+    const html = sec('Ma liste', r.foods) + sec('Mes recettes', r.recipes) + sec('Idées recettes', r.dishes) + sec('Base de plats', r.base);
     return html || `<div class="empty-state">Rien trouvé pour « ${esc(query)} ».<br><button class="btn btn-sm btn-soft" data-free style="margin-top:10px">Saisie libre</button></div>`;
   };
   const body = () => mode === 'list' ? `
@@ -836,7 +849,8 @@ function renderWeight(el) {
 
   const ws = [...S.weights].sort((a, b) => b.date.localeCompare(a.date));
   el.innerHTML = `
-    <div class="topbar"><div><h1 class="title">Poids</h1><p class="subtitle">Cap sur ${nf1(s.targetWeight)} kg</p></div></div>
+    ${suiviHead()}
+    <p class="subtitle" style="margin:-4px 4px 12px">Cap sur ${nf1(s.targetWeight)} kg</p>
     <div class="kpis">
       <div class="kpi"><b>${nf1(cur)}<small> kg</small></b><span>Actuel</span></div>
       <div class="kpi accent"><b>${lost >= 0 ? '−' : '+'}${nf1(Math.abs(lost))}<small> kg</small></b><span>${lost >= 0 ? 'Perdus' : 'Pris'}</span></div>
@@ -846,7 +860,8 @@ function renderWeight(el) {
       <div class="bar"><i data-w="${pct}" class="${reached ? 'done' : ''}"></i></div>
       <div class="progress-meta"><span>${nf1(s.startWeight)} kg</span><span>${nf(pct)} %</span><span>${nf1(s.targetWeight)} kg</span></div>
     </div>
-    <div class="card"><h2>Évolution</h2><div class="chart" id="chart"></div></div>
+    ${weightCycleNote()}
+    <div class="card"><h2>Évolution</h2><div class="chart" id="chart"></div>${cycleCfg().enabled && cycleCfg().starts.length ? '<p class="field-hint" style="margin-top:6px">🩸 Les petits traits rouges marquent le début de tes règles.</p>' : ''}</div>
     <div class="card"><h2>Estimation d'arrivée</h2>${est}</div>
     <div class="card">
       <h2>Nouvelle pesée</h2>
@@ -892,6 +907,7 @@ function renderWeight(el) {
     <p class="field-hint" style="text-align:center">Cap 65 · données stockées localement</p>`;
 
   requestAnimationFrame(() => requestAnimationFrame(() => $$('[data-w]', el).forEach((b) => { b.style.width = b.dataset.w + '%'; })));
+  bindSuiviHead(el);
   drawChart($('#chart', el));
 
   $('#wadd', el).onclick = () => {
@@ -957,6 +973,7 @@ function drawChart(box) {
     <text class="goal-lbl" x="${W - m.r}" y="${Y(target) - 6}" text-anchor="end">Objectif ${nf1(target)} kg</text>
     ${area ? `<path class="w-area" d="${area}"/>` : ''}
     <path class="w-line" d="${line}"/>
+    ${cycleCfg().enabled ? cycleCfg().starts.filter((k) => k >= x0 && k <= x1).map((k) => `<line class="period-tick" x1="${X(k)}" x2="${X(k)}" y1="${H - m.b - 8}" y2="${H - m.b}"/>`).join('') : ''}
     <line class="cross" id="cross" y1="${m.t}" y2="${H - m.b}" x1="-10" x2="-10"/>
     ${pts.map((p, i) => `<circle class="w-dot" data-i="${i}" cx="${X(p.date)}" cy="${Y(p.kg)}" r="4"/>`).join('')}
     ${xl.map((k, i) => `<text class="axis-lbl" x="${X(k)}" y="${H - 6}" text-anchor="${['start', 'middle', 'end'][i]}">${fmtShort(k)}</text>`).join('')}
@@ -1016,15 +1033,15 @@ function importData(file) {
    Écran 2 : Repas (mes aliments · base de plats · recettes)
    ========================================================= */
 function repasHead() {
-  const tabs = [['foods', 'Mes aliments'], ['base', 'Base de plats'], ['recettes', 'Recettes']];
+  const tabs = [['foods', 'Aliments'], ['base', 'Base'], ['recettes', 'Recettes'], ['courses', 'Courses']];
   return `<div class="topbar"><div><h1 class="title">Repas</h1></div></div>
-    <div class="seg seg3">${tabs.map(([id, l]) => `<button data-rv="${id}" aria-pressed="${ui.repas === id}">${l}</button>`).join('')}</div>`;
+    <div class="seg seg4">${tabs.map(([id, l]) => `<button data-rv="${id}" aria-pressed="${ui.repas === id}">${l}</button>`).join('')}</div>`;
 }
 function bindRepasHead(el) {
   $$('[data-rv]', el).forEach((b) => b.onclick = () => { ui.repas = b.dataset.rv; render(); window.scrollTo(0, 0); });
 }
 function renderRepas(el) {
-  ({ foods: renderFoods, base: renderBase, recettes: renderRecettes }[ui.repas])(el);
+  ({ foods: renderFoods, base: renderBase, recettes: renderRecettes, courses: renderCourses }[ui.repas])(el);
 }
 
 function openQuickAdd(item) {
@@ -1089,10 +1106,11 @@ function renderBase(el) {
 }
 
 /* ---------- Recettes ---------- */
-function dishCard(d, mine) {
+function dishCard(d, mine, pref) {
+  const key = (pref || (mine ? 'r' : 'd')) + ':' + d.id;
   return `<article class="card">
     <div class="dish-head"><div class="dish-emoji">${esc(d.e || '🍽️')}</div><div><h2>${esc(d.name)}</h2>${d.desc ? `<p>${esc(d.desc)}</p>` : ''}</div></div>
-    ${d.me || d.him ? `<div class="portions">
+    ${d.solo ? `<div class="portions solo"><div class="portion me"><strong>Ma portion</strong>${esc(d.me)}</div></div>` : d.me || d.him ? `<div class="portions">
       <div class="portion me"><strong>Ma portion</strong>${esc(d.me || '1 part')}</div>
       <div class="portion"><strong>Sa portion</strong>${esc(d.him || '—')}</div>
     </div>` : ''}
@@ -1100,7 +1118,8 @@ function dishCard(d, mine) {
     <div class="dish-foot">
       <div class="kc">${nf(d.kcal)} kcal<small>${nf(d.prot)} g de protéines · ma part</small></div>
       ${mine ? `<button class="icon-btn" data-redit="${d.id}" aria-label="Modifier">✎</button>` : ''}
-      <button class="btn btn-primary btn-sm" data-radd="${mine ? 'r' : 'd'}:${d.id}">＋ À ma journée</button>
+      <button class="icon-btn plan-btn" data-rplan="${key}" aria-label="Prévoir dans la semaine">🛒</button>
+      <button class="btn btn-primary btn-sm" data-radd="${key}">＋ Ma journée</button>
     </div>
     ${d.tip ? `<p class="tip">💡 ${esc(d.tip)}</p>` : ''}
     ${mine && d.steps ? `<p class="tip" style="white-space:pre-line">📝 ${esc(d.steps)}</p>` : ''}
@@ -1113,6 +1132,8 @@ function renderRecettes(el) {
     <p class="field-hint" style="text-align:center;margin-bottom:8px">Ajoute tes ingrédients et leurs grammes : l'app calcule les calories de ta part.</p>
     <div class="section-title">Mes recettes <small>${S.recipes.length}</small></div>
     ${S.recipes.length ? S.recipes.map((r) => dishCard(r, true)).join('') : '<div class="card empty-state"><span class="big">👩‍🍳</span>Tes recettes apparaîtront ici.</div>'}
+    <div class="section-title">Petit-déj & en-cas protéinés <small>${SOLO_RECIPES.length}</small></div>
+    ${SOLO_RECIPES.map((d) => dishCard(d, false, 's')).join('')}
     <div class="section-title">Idées repas à deux <small>${DISHES.length}</small></div>
     <p class="subtitle" style="margin:-4px 4px 12px">Sans avocat ni poisson pour toi, sans champignons ni haricots pour lui.</p>
     ${DISHES.map((d) => dishCard(d, false)).join('')}`;
@@ -1120,6 +1141,7 @@ function renderRecettes(el) {
   $('#rnew', el).onclick = () => openRecipeSheet(null);
   $$('[data-redit]', el).forEach((b) => b.onclick = () => openRecipeSheet(b.dataset.redit));
   $$('[data-radd]', el).forEach((b) => b.onclick = () => openQuickAdd(catalogItem(b.dataset.radd)));
+  $$('[data-rplan]', el).forEach((b) => b.onclick = () => openPlanSheet(b.dataset.rplan));
 }
 
 function openRecipeSheet(id) {
