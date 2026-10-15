@@ -67,7 +67,7 @@ function openPickRecipe(mon, wd) {
     }).join('') || '<div class="empty-state">Aucune recette trouvée.</div>';
   };
   openSheet(`${sheetHead(`${WD_LONG[wd]} : ajouter un plat`)}
-    <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><input type="search" id="prq" placeholder="Rechercher une recette…" autocomplete="off"></div>
+    <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><input type="search" id="prq" placeholder="Rechercher une recette…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
     <div id="prl" class="pick-list">${list()}</div>`, (sh) => {
     const bind = () => $$('[data-pick]', sh).forEach((b) => b.onclick = () => {
       planOf(mon).days[wd].push(b.dataset.pick); save(); closeSheet(); render();

@@ -478,7 +478,7 @@ textarea:focus { border-color: var(--accent); }
 .ex-more .avoid { color: var(--warn); background: var(--warn-soft); border-radius: 12px; padding: 8px 10px; }
 .ex-load { display: flex; align-items: center; gap: 10px; margin: 8px 0 0 44px; }
 .ex-load span { font-size: 13px; font-weight: 800; color: var(--ink-2); white-space: nowrap; }
-.ex-load input { min-height: 40px; font-size: 15px; border-radius: 12px; }
+.ex-load input { min-height: 40px; font-size: 16px; border-radius: 12px; }
 .sets { display: flex; gap: 8px; margin: 12px 0 0 44px; flex-wrap: wrap; }
 .set { width: 48px; height: 48px; border-radius: 50%; border: 2.5px solid var(--line); font-weight: 900; color: var(--ink-2); transition: background .2s, border-color .2s, transform .12s; }
 .set:active { transform: scale(.92); }
@@ -628,3 +628,11 @@ body.no-scroll { overflow: hidden; }
 .chart .period-tick { stroke: var(--bad); stroke-width: 3; stroke-linecap: round; }
 
 .body-svg .mz-lead { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 2 2; }
+
+/* ---------- Saisie mobile : jamais de zoom auto, clavier confortable ---------- */
+html { touch-action: manipulation; }
+input, select, textarea { font-size: max(16px, 1em) !important; }
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+body.kb-open .tabbar { display: none; }
+body.kb-open .screen { padding-bottom: 24px; }
+body.kb-open .toast { bottom: 12px; }

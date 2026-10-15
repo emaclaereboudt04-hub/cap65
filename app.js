@@ -481,7 +481,7 @@ function openMealSheet() {
   };
   const body = () => mode === 'list' ? `
       <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
-        <input type="search" id="mq" placeholder="Aliment, plat, recette…" value="${esc(query)}" autocomplete="off" enterkeyhint="search"></div>
+        <input type="search" id="mq" placeholder="Aliment, plat, recette…" autocorrect="off" autocapitalize="off" spellcheck="false" value="${esc(query)}" autocomplete="off" enterkeyhint="search"></div>
       <div class="pick-list" id="plist">${foodsHtml()}</div>` : `
       <label class="field"><span>Nom</span><input id="fn" placeholder="Ex. : Salade composée" autocomplete="off" enterkeyhint="next"></label>
       <div class="grid2">
@@ -580,14 +580,14 @@ function sortFoods() {
   // favoris en haut, ordre conservé dans chaque groupe
   S.foods = [...S.foods.filter((f) => f.fav), ...S.foods.filter((f) => !f.fav)];
 }
-function renderFoods(el) {
+function renderFoods(el, partial) {
   const ql = ui.foodQuery.trim();
   const list = S.foods.filter((f) => matches(ql, f.name, f.portion));
-  el.innerHTML = `
+  const html = `
     ${repasHead()}
     <p class="subtitle" style="margin:-4px 4px 12px">${S.foods.length} produits · ⭐ favoris en haut</p>
     <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
-      <input type="search" id="fq" placeholder="Rechercher…" value="${esc(ui.foodQuery)}" autocomplete="off"></div>
+      <input type="search" id="fq" placeholder="Rechercher…" value="${esc(ui.foodQuery)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></div>
     <button class="btn btn-primary btn-block" id="fnew" style="margin-bottom:14px">＋ Nouveau produit</button>
     <div class="list" id="flist">${list.length ? list.map((f) => {
       const i = S.foods.indexOf(f);
@@ -606,14 +606,10 @@ function renderFoods(el) {
       </div>`;
     }).join('') : '<div class="empty-state">Aucun produit trouvé.</div>'}</div>
     <p class="field-hint" style="text-align:center;margin-top:12px">Touche un produit pour le modifier, le marquer « écart » ou le supprimer.</p>`;
+  if (partial) { const t = document.createElement('div'); t.innerHTML = html; $('#flist', el).innerHTML = $('#flist', t).innerHTML; } else el.innerHTML = html;
 
   bindRepasHead(el);
-  $('#fq', el).addEventListener('input', (e) => {
-    ui.foodQuery = e.target.value;
-    const pos = e.target.selectionStart;
-    renderFoods(el);
-    const inp = $('#fq', el); inp.focus(); inp.setSelectionRange(pos, pos);
-  });
+  $('#fq', el).oninput = (e) => { ui.foodQuery = e.target.value; renderFoods(el, true); };
   $('#fnew', el).onclick = () => openFoodSheet(null);
   $$('[data-edit]', el).forEach((b) => b.onclick = () => openFoodSheet(b.dataset.edit));
   $$('[data-fav]', el).forEach((b) => b.onclick = () => {
@@ -1067,19 +1063,19 @@ function openQuickAdd(item) {
 }
 
 /* ---------- Base de plats ---------- */
-function renderBase(el) {
+function renderBase(el, partial) {
   const items = BASE.map((b, i) => [i, b]).filter(([, b]) => (!ui.baseCat || b[0] === ui.baseCat) && matches(ui.baseQuery, b[1], b[2], b[0]));
   const inList = (b) => S.foods.some((f) => f.name === b[1] && f.portion === b[2]);
-  el.innerHTML = `
+  const html = `
     ${repasHead()}
     <p class="subtitle" style="margin:-4px 4px 12px">${BASE.length} plats et aliments courants, calories déjà calculées.</p>
     <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
-      <input type="search" id="bq" placeholder="Ex. : quiche, kebab, risotto…" value="${esc(ui.baseQuery)}" autocomplete="off"></div>
+      <input type="search" id="bq" placeholder="Ex. : quiche, kebab, risotto…" value="${esc(ui.baseQuery)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></div>
     <div class="chips scroll-x" style="margin-bottom:12px">
       <button class="chip" data-cat="" aria-pressed="${!ui.baseCat}">Tout</button>
       ${BASE_CATS.map((c) => `<button class="chip" data-cat="${c}" aria-pressed="${ui.baseCat === c}">${c}</button>`).join('')}
     </div>
-    <div class="list">${items.length ? items.map(([i, b]) => `
+    <div class="list" id="blist">${items.length ? items.map(([i, b]) => `
       <div class="item">
         <div class="item-main">
           <div class="item-name">${esc(b[1])}${b[5] ? `<span class="badge">${ECARTS[b[5]].e} écart</span>` : ''}</div>
@@ -1090,11 +1086,9 @@ function renderBase(el) {
         <button class="pick-plus" data-badd="${i}" aria-label="Ajouter à ma journée">＋</button>
       </div>`).join('') : '<div class="empty-state">Rien trouvé. Essaie un autre mot, ou ajoute-le dans « Mes aliments ».</div>'}</div>
     <p class="field-hint" style="text-align:center;margin-top:12px">Valeurs moyennes indicatives (portions standards). ☆ = copier dans ta liste pour l'ajuster.</p>`;
+  if (partial) { const t = document.createElement('div'); t.innerHTML = html; $('#blist', el).innerHTML = $('#blist', t).innerHTML; } else el.innerHTML = html;
   bindRepasHead(el);
-  $('#bq', el).addEventListener('input', (e) => {
-    ui.baseQuery = e.target.value; const pos = e.target.selectionStart;
-    renderBase(el); const inp = $('#bq', el); inp.focus(); inp.setSelectionRange(pos, pos);
-  });
+  $('#bq', el).oninput = (e) => { ui.baseQuery = e.target.value; renderBase(el, true); };
   $$('[data-cat]', el).forEach((b) => b.onclick = () => { ui.baseCat = b.dataset.cat; renderBase(el); });
   $$('[data-badd]', el).forEach((b) => b.onclick = () => openQuickAdd(catalogItem('b:' + b.dataset.badd)));
   $$('[data-tolist]', el).forEach((btn) => btn.onclick = () => {
@@ -1181,7 +1175,7 @@ function openRecipeSheet(id) {
           <div class="group"><div class="group-lbl">Ingrédients du plat entier</div>
             <div id="ings">${ingRows()}</div>
             <div class="search" style="margin-bottom:0"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
-              <input type="search" id="iq" placeholder="Ajouter un ingrédient (poulet, pâtes…)" value="${esc(iq)}" autocomplete="off"></div>
+              <input type="search" id="iq" placeholder="Ajouter un ingrédient (poulet, pâtes…)" value="${esc(iq)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
             <div id="ires">${results()}</div>
           </div>
           <div class="quota-row" style="border:0">
@@ -1688,6 +1682,14 @@ function openSessionSheet(s) {
     };
   });
 }
+
+/* ---------------- Saisie au clavier & zoom ---------------- */
+// Empêche le zoom par pincement / double-tap (iOS ignore parfois user-scalable=no).
+['gesturestart', 'gesturechange'].forEach((t) => document.addEventListener(t, (e) => e.preventDefault(), { passive: false }));
+// Masque la barre d'onglets quand le clavier est ouvert : plus de place pour écrire.
+const isField = (t) => t && t.matches && t.matches('input:not([type="checkbox"]):not([type="file"]), textarea, select');
+document.addEventListener('focusin', (e) => { if (isField(e.target)) document.body.classList.add('kb-open'); });
+document.addEventListener('focusout', () => setTimeout(() => { if (!isField(document.activeElement)) document.body.classList.remove('kb-open'); }, 80));
 
 /* ---------------- Démarrage ---------------- */
 checkCelebrations();
