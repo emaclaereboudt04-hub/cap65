@@ -1,5 +1,7 @@
-/* Cap 65 : service worker (hors ligne). Incrémente VERSION à chaque mise à jour. */
-const VERSION = 'cap65-v7';
+/* Cap 65 : service worker (hors ligne).
+   Stratégie « réseau d'abord » : quand il y a du réseau, on prend toujours la dernière version
+   publiée ; sinon on se sert de la copie enregistrée. Incrémente VERSION à chaque mise à jour. */
+const VERSION = 'cap65-v8';
 const ASSETS = [
   './',
   'index.html',
@@ -19,7 +21,12 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache: 'reload' : ignore le cache HTTP du navigateur pour ne jamais enregistrer une ancienne copie.
+  e.waitUntil(
+    caches.open(VERSION)
+      .then((c) => Promise.all(ASSETS.map((u) => fetch(new Request(u, { cache: 'reload' })).then((r) => { if (r.ok) return c.put(u, r); }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -30,22 +37,16 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Réseau d'abord pour les pages (mises à jour rapides), cache sinon ; cache d'abord pour le reste.
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
-  if (req.mode === 'navigate') {
-    e.respondWith(
-      fetch(req)
-        .then((res) => { const copy = res.clone(); caches.open(VERSION).then((c) => c.put('index.html', copy)); return res; })
-        .catch(() => caches.match('index.html'))
-    );
-    return;
-  }
+  const isPage = req.mode === 'navigate';
   e.respondWith(
-    caches.match(req, { ignoreSearch: true }).then((hit) => hit || fetch(req).then((res) => {
-      if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
-      return res;
-    }))
+    fetch(req, { cache: 'no-cache' })
+      .then((res) => {
+        if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(isPage ? 'index.html' : req, copy)); }
+        return res;
+      })
+      .catch(() => caches.match(isPage ? 'index.html' : req, { ignoreSearch: true }))
   );
 });

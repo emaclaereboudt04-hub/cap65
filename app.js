@@ -6,6 +6,7 @@
    ========================================================= */
 
 const STORE_KEY = 'cap65-data-v1';
+const APP_VERSION = '8 · 16 oct.';
 const MOMENTS = ['Matin', 'Midi', 'En-cas', 'Soir'];
 const ACTIVITIES = [
   { n: 'Vélo', e: '🚴‍♀️' },
@@ -901,7 +902,7 @@ function renderWeight(el) {
       </div>
       <input type="file" id="impf" accept="application/json,.json" class="hidden">
     </div>
-    <p class="field-hint" style="text-align:center">Cap 65 · données stockées localement</p>`;
+    <p class="field-hint" style="text-align:center">Cap 65 · version ${APP_VERSION} · données stockées localement</p>`;
 
   requestAnimationFrame(() => requestAnimationFrame(() => $$('[data-w]', el).forEach((b) => { b.style.width = b.dataset.w + '%'; })));
   bindSuiviHead(el);
@@ -1708,6 +1709,20 @@ document.addEventListener('visibilitychange', () => {
 });
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  // Nouvelle version installée : on recharge une fois pour l'afficher tout de suite.
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    window.location.reload();
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+      reg.update().catch(() => {});
+      // Vérifie aussi à chaque retour dans l'app (l'iPhone la garde souvent ouverte en arrière-plan).
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    }).catch(() => {});
+  });
 }
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
