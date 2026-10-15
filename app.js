@@ -75,7 +75,7 @@ function freshState() {
     quotas: {},
     celebrated: {},
     recipes: [],
-    sport: { adjust: 0, days: {}, loads: {}, live: null },
+    sport: { adjust: 0, days: {}, hist: {}, live: null },
   };
 }
 function load() {
@@ -190,7 +190,7 @@ function openSheet(html, onMount) {
   sheet.scrollTop = 0;
   if (onMount) onMount(sheet);
 }
-function closeSheet() { stopRest(); $('#sheet').hidden = true; $('#sheet-backdrop').hidden = true; $('#sheet').innerHTML = ''; }
+function closeSheet() { $('#sheet').hidden = true; $('#sheet-backdrop').hidden = true; $('#sheet').innerHTML = ''; }
 $('#sheet-backdrop').addEventListener('click', closeSheet);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 const sheetHead = (t) => `<div class="sheet-head"><h2>${t}</h2><button class="icon-btn" data-close aria-label="Fermer">✕</button></div>`;
@@ -1262,9 +1262,9 @@ const toneDays = (id) => (S.sport.days && S.sport.days[id]) || [];
 const todayWd = () => (new Date().getDay() + 6) % 7; // 0 = lundi
 
 function exerciseHtml(x, lvl, n) {
-  const reps = lv(x.reps, lvl), load = x.load ? lv(x.load, lvl) : null;
+  const reps = lv(x.reps, lvl), rec = x.kg ? recommend(x, lvl) : null, load = rec ? loadLabel(x, rec.kg) : null;
   return `<li class="ex">
-    <div class="ex-head"><span class="ex-num">${n}</span><div><strong>${esc(x.name)}</strong><span>${esc(lv(x.where, lvl))}</span></div></div>
+    <div class="ex-head"><span class="ex-num">${n}</span><div style="flex:1"><strong>${esc(x.name)}</strong><span>${esc(lv(x.where, lvl))}</span></div><div class="ex-thumb">${ILLUS.render(x.id)}</div></div>
     <div class="ex-meta">
       <span>🔁 ${x.sets} × ${esc(reps)}</span>
       ${load ? `<span>🏋️ ${esc(load)}</span>` : ''}
@@ -1275,7 +1275,7 @@ function exerciseHtml(x, lvl, n) {
       <ol>${x.how.map((h) => `<li>${esc(h)}</li>`).join('')}</ol>
       <p class="avoid">⚠️ ${esc(x.avoid)}</p>
     </details>
-    ${x.load ? `<label class="ex-load"><span>Ma charge</span><input data-load="${x.id}" value="${esc(S.sport.loads[x.id] || '')}" placeholder="${esc(load)}" autocomplete="off"></label>` : ''}
+    ${rec ? `<p class="ex-rec">🎯 Conseillé : ${esc(load)} · ${esc(rec.why)}</p>` : ''}
   </li>`;
 }
 function blockHtml(b, lvl) {
@@ -1284,13 +1284,6 @@ function blockHtml(b, lvl) {
 function toneListHtml(s, lvl) {
   let n = 0;
   return `<ol class="ex-list">${s.items.map((it) => (it.block ? blockHtml(it, lvl) : exerciseHtml(it, lvl, ++n))).join('')}</ol>`;
-}
-function bindLoads(root) {
-  $$('[data-load]', root).forEach((inp) => inp.oninput = () => {
-    const v = inp.value.trim();
-    if (v) S.sport.loads[inp.dataset.load] = v; else delete S.sport.loads[inp.dataset.load];
-    save();
-  });
 }
 
 function renderSport(el) {
@@ -1316,11 +1309,13 @@ function renderSport(el) {
         <div style="flex:1"><h2>Séance ${s.id} · ${s.title}</h2><p>${total} min${s.blocks.some((b) => b.renfo) ? ' · cardio + renfo' : ' · 100 % cardio'}</p></div>
         ${doneHead(d)}
       </div>
-      <details ${d ? '' : 'open'}><summary>${d ? doneLine(d) : 'Voir le déroulé'}</summary>
+      <details><summary>${d ? doneLine(d) : 'Voir le déroulé'}</summary>
         <ol class="blocks">${s.blocks.map((b) => `<li class="${b.renfo ? 'renfo' : ''}"><span class="b-min">${b.d}′</span><div><strong>${b.t}</strong><span>${b.txt[lvl - 1]}</span></div></li>`).join('')}</ol>
         ${s.alt ? `<p class="tip">🔄 ${s.alt}</p>` : ''}
       </details>
-      ${d ? '' : `<button class="btn btn-primary btn-block" data-sdo="${s.id}" style="margin-top:12px">✓ J'ai fait cette séance</button>`}
+      ${d ? '' : `<div class="grid2" style="margin-top:12px">
+        <button class="btn btn-primary" data-cgo="${s.id}">${S.sport.live && S.sport.live.v === 2 && S.sport.live.sid === s.id && S.sport.live.date === tk ? '▶︎ Reprendre' : 'Let\'s go 🚀'}</button>
+        <button class="btn btn-soft" data-sdo="${s.id}">✓ C'est fait</button></div>`}
     </article>`;
   };
 
@@ -1328,7 +1323,7 @@ function renderSport(el) {
     const d = done[s.id];
     const days = toneDays(s.id);
     const nEx = s.items.filter((i) => !i.block).length;
-    const live = S.sport.live && S.sport.live.sid === s.id && S.sport.live.date === tk;
+    const live = S.sport.live && S.sport.live.v === 2 && S.sport.live.sid === s.id && S.sport.live.date === tk;
     return `<article class="card session tone ${d ? 'is-done' : ''}">
       <div class="dish-head">
         <div class="dish-emoji">${s.e}</div>
@@ -1340,7 +1335,7 @@ function renderSport(el) {
       ${d ? `<p class="small" style="color:var(--good);font-weight:800;margin:10px 0 0">✓ ${doneLine(d)}</p>` : ''}
       <details class="ex-details"><summary>Voir tous les exercices en détail</summary>${toneListHtml(s, lvl)}</details>
       <div class="grid2" style="margin-top:12px">
-        <button class="btn btn-primary" data-tstart="${s.id}">▶︎ ${live ? 'Reprendre' : 'Mode guidé'}</button>
+        <button class="btn btn-primary" data-tstart="${s.id}">${live ? '▶︎ Reprendre' : 'Let\'s go 🚀'}</button>
         <button class="btn btn-soft" data-tdone="${s.id}">✓ C'est fait</button>
       </div>
     </article>`;
@@ -1362,7 +1357,7 @@ function renderSport(el) {
     </div>
 
     <div class="section-title">Tonification <small>jours au choix</small></div>
-    <p class="subtitle" style="margin:-4px 4px 12px">Choisis tes jours : l'app te le rappelle le matin. Le mode guidé affiche chaque série et lance le minuteur de repos.</p>
+    <p class="subtitle" style="margin:-4px 4px 12px">Choisis tes jours : l'app te le rappelle le matin. « Let's go » enchaîne la séance étape par étape, avec chrono de repos silencieux et charge conseillée.</p>
     ${TONE_SESSIONS.map(toneCard).join('')}
 
     <div class="section-title">Cardio <small>4 séances de 45 min</small></div>
@@ -1378,7 +1373,6 @@ function renderSport(el) {
     </div>`;
 
   requestAnimationFrame(() => requestAnimationFrame(() => $$('[data-w]', el).forEach((b) => { b.style.width = b.dataset.w + '%'; })));
-  bindLoads(el);
   $$('[data-adj]', el).forEach((b) => b.onclick = () => {
     const d = +b.dataset.adj;
     const next = sportLevel(w) + d;
@@ -1396,108 +1390,221 @@ function renderSport(el) {
     save();
   });
   $$('[data-sdo]', el).forEach((b) => b.onclick = () => openSessionSheet(SESSIONS.find((s) => s.id === b.dataset.sdo)));
-  $$('[data-tstart]', el).forEach((b) => b.onclick = () => openGuided(TONE_SESSIONS.find((s) => s.id === b.dataset.tstart)));
+  $$('[data-tstart]', el).forEach((b) => b.onclick = () => openPlayer(TONE_SESSIONS.find((s) => s.id === b.dataset.tstart)));
+  $$('[data-cgo]', el).forEach((b) => b.onclick = () => openPlayer(SESSIONS.find((s) => s.id === b.dataset.cgo)));
   $$('[data-tdone]', el).forEach((b) => b.onclick = () => openToneDone(TONE_SESSIONS.find((s) => s.id === b.dataset.tdone)));
   $('#sfree', el).onclick = () => { ui.day = todayKey(); openCardioSheet(); };
 }
 
-/* ---------- Mode guidé (séries + minuteur de repos) ---------- */
-let restTimer = null;
-function beep() {
-  try {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    const ctx = beep.ctx || (beep.ctx = new AC());
-    [0, 0.25].forEach((t) => {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
-      g.gain.setValueAtTime(0.25, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.2);
-      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.2);
-    });
-  } catch (e) { /* son indisponible */ }
-  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-}
-function stopRest() { clearInterval(restTimer); restTimer = null; }
-function startRest(sh, secs, label) {
-  stopRest();
-  const bar = $('#rest', sh);
-  const end = Date.now() + secs * 1000;
-  bar.hidden = false;
-  const tick = () => {
-    const left = Math.max(0, Math.round((end - Date.now()) / 1000));
-    bar.innerHTML = `<div class="rest-fill" style="width:${(left / secs) * 100}%"></div>
-      <span class="rest-txt">${left ? `⏱️ Repos ${Math.floor(left / 60)}:${pad(left % 60)}` : '💪 C\'est reparti !'}</span>
-      <span class="rest-next">${esc(label)}</span>
-      <button data-rskip>${left ? 'Passer' : 'OK'}</button>`;
-    $('[data-rskip]', bar).onclick = () => { stopRest(); bar.hidden = true; };
-    if (!left) { stopRest(); beep(); setTimeout(() => { if (!restTimer) bar.hidden = true; }, 4000); }
-  };
-  tick();
-  restTimer = setInterval(tick, 500);
+/* ---------- Charges : conseil + ajustement selon le ressenti ---------- */
+const LOAD_FEELS = { light: '🪶 Trop léger', ok: '👌 Parfait', heavy: '🧱 Trop lourd' };
+const loadLabel = (x, kg) => `${x.db ? '2 × ' : ''}${nf1(kg)} kg${x.id === 'hip-thrust' && kg <= 20 ? ' (barre seule)' : ''}`;
+function loadHist(id) { return (S.sport.hist && S.sport.hist[id]) || []; }
+function recommend(x, lvl) {
+  const h = loadHist(x.id);
+  if (!h.length) return { kg: x.kg[lvl - 1], why: 'Charge de départ pour ton niveau' };
+  const last = h[h.length - 1], prev = h[h.length - 2];
+  if (last.feel === 'light') return { kg: last.kg + x.step, why: `${loadLabel(x, last.kg)} était trop léger → on monte` };
+  if (last.feel === 'heavy') return { kg: Math.max(x.step, last.kg - x.step), why: `${loadLabel(x, last.kg)} était trop lourd → on baisse un peu` };
+  if (prev && prev.feel === 'ok' && prev.kg === last.kg) return { kg: last.kg + x.step, why: `2 séances parfaites à ${loadLabel(x, last.kg)} → on progresse !` };
+  return { kg: last.kg, why: `${loadLabel(x, last.kg)} était parfait → on garde` };
 }
 
-function openGuided(s) {
-  const tk = todayKey(), lvl = sportLevel(weekIndex(tk));
-  if (!S.sport.live || S.sport.live.sid !== s.id || S.sport.live.date !== tk) { S.sport.live = { sid: s.id, date: tk, sets: {} }; save(); }
-  const live = S.sport.live;
-  const exs = s.items.filter((i) => !i.block);
-  const bubbles = (x) => {
-    const n = live.sets[x.id] || 0;
-    return Array.from({ length: x.sets }, (_, i) => `<button class="set ${i < n ? 'on' : ''}" data-set="${x.id}:${i}" aria-label="Série ${i + 1}">${i < n ? '✓' : i + 1}</button>`).join('');
+/* ---------- Lecteur de séance « Let's go » ---------- */
+function buildSteps(s) {
+  const lvl = sportLevel(weekIndex(todayKey()));
+  const steps = [];
+  if (s.items) {
+    s.items.forEach((it) => steps.push(it.block
+      ? { kind: 'block', t: it.t, d: it.d, txt: it.txt[lvl - 1], illus: ILLUS.forBlock(it.t, it.txt[lvl - 1]) }
+      : { kind: 'ex', x: it, illus: it.id }));
+  } else {
+    s.blocks.forEach((b) => steps.push({ kind: 'block', t: b.t, d: b.d, txt: b.txt[lvl - 1], illus: ILLUS.forBlock(b.t, b.txt[lvl - 1]) }));
+  }
+  steps.push({ kind: 'end' });
+  return { steps, lvl };
+}
+const repsTxt = (r) => (/s$/.test(r) ? r : r.replace(/^(\d+)/, '$1 rép.'));
+const fmtClock = (ms) => { const t = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(t / 60)}:${pad(t % 60)}`; };
+let playerTick = null, wakeLock = null;
+
+function openPlayer(s) {
+  const tk = todayKey();
+  if (!S.sport.live || S.sport.live.sid !== s.id || S.sport.live.date !== tk || S.sport.live.v !== 2) {
+    S.sport.live = { v: 2, sid: s.id, date: tk, step: 0, set: 1, phase: 'work', kgs: {}, start: Date.now() };
+    save();
+  }
+  const L = S.sport.live;
+  const { steps, lvl } = buildSteps(s);
+  let pl = $('#player');
+  if (!pl) { pl = document.createElement('div'); pl.id = 'player'; pl.className = 'player'; document.body.appendChild(pl); }
+  pl.hidden = false;
+  document.body.classList.add('no-scroll');
+  try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then((w) => { wakeLock = w; }).catch(() => {}); } catch (e) { /* pas de wake lock */ }
+
+  const close = () => {
+    clearInterval(playerTick); playerTick = null;
+    pl.hidden = true; pl.innerHTML = '';
+    document.body.classList.remove('no-scroll');
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    save(); render();
   };
-  const progress = () => { const tot = exs.reduce((a, x) => a + x.sets, 0), d = exs.reduce((a, x) => a + Math.min(live.sets[x.id] || 0, x.sets), 0); return { tot, d }; };
-  let n = 0;
-  openSheet(`<div class="sheet-head"><h2>${s.e} ${s.title}</h2><button class="icon-btn" data-gclose aria-label="Fermer">✕</button></div>
-    <div class="rest" id="rest" hidden></div>
-    <div class="bar" style="margin-bottom:6px"><i id="gprog" style="width:0"></i></div>
-    <p class="field-hint" id="gtxt" style="margin:0 4px 12px"></p>
-    <ol class="ex-list guided">${s.items.map((it) => {
-      if (it.block) return blockHtml(it, lvl);
-      n++;
-      const next = exs[exs.indexOf(it) + 1];
-      return `<li class="ex" id="gx-${it.id}">
-        <div class="ex-head"><span class="ex-num">${n}</span><div><strong>${esc(it.name)}</strong><span>${esc(lv(it.where, lvl))}</span></div></div>
-        <div class="ex-meta"><span>🔁 ${it.sets} × ${esc(lv(it.reps, lvl))}</span>${it.load ? `<span>🏋️ ${esc(S.sport.loads[it.id] || lv(it.load, lvl))}</span>` : ''}<span>⏱️ ${it.rest ? fmtRest(it.rest) : 'enchaîne'}</span></div>
-        <div class="sets" data-rest="${it.rest}" data-next="${esc(next ? 'Ensuite : ' + next.name : 'Ensuite : la fin de séance')}">${bubbles(it)}</div>
-        <details class="ex-more"><summary>Comment faire</summary>
-          <p><b>Réglage :</b> ${esc(it.setup)}</p><ol>${it.how.map((h) => `<li>${esc(h)}</li>`).join('')}</ol><p class="avoid">⚠️ ${esc(it.avoid)}</p>
-        </details>
-        ${it.load ? `<label class="ex-load"><span>Ma charge</span><input data-load="${it.id}" value="${esc(S.sport.loads[it.id] || '')}" placeholder="${esc(lv(it.load, lvl))}" autocomplete="off"></label>` : ''}
-      </li>`;
-    }).join('')}</ol>
-    <button class="btn btn-primary btn-block" id="gend" style="margin-top:12px">🏁 Terminer la séance</button>
-    <button class="btn btn-block" id="greset" style="margin-top:8px">Recommencer à zéro</button>`, (sh) => {
-    const upd = () => {
-      const { tot, d } = progress();
-      $('#gprog', sh).style.width = `${(d / tot) * 100}%`;
-      $('#gtxt', sh).textContent = `${d}/${tot} séries faites · touche une bulle après chaque série`;
-    };
-    upd();
-    bindLoads(sh);
-    const bindSets = () => $$('[data-set]', sh).forEach((b) => b.onclick = () => {
-      const [id, i] = b.dataset.set.split(':');
-      const x = exs.find((e) => e.id === id), cur = live.sets[id] || 0;
-      const nv = +i < cur ? +i : +i + 1;
-      live.sets[id] = nv; save();
-      const box = b.parentElement;
-      box.innerHTML = bubbles(x); bindSets(); upd();
-      if (nv > cur) {
-        const on = $$('.set.on', box).pop(); if (on) on.classList.add('pop');
-        const r = +box.dataset.rest;
-        if (r > 0) startRest(sh, r, nv < x.sets ? `Série ${nv + 1}/${x.sets} de ${x.name}` : box.dataset.next);
-        if (nv === x.sets) $(`#gx-${id}`, sh).classList.add('ex-done');
+  const go = (i) => {
+    L.step = Math.max(0, Math.min(steps.length - 1, i));
+    L.set = 1; L.phase = steps[L.step].kind === 'block' ? 'block' : 'work';
+    L.blockEnd = null; L.blockLeft = null; L.restEnd = null;
+    save(); draw();
+  };
+  const ring = (frac, cls) => {
+    const C = 2 * Math.PI * 70;
+    return `<svg class="pring" viewBox="0 0 160 160"><circle class="pring-track" cx="80" cy="80" r="70"/><circle class="pring-val ${cls}" cx="80" cy="80" r="70" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - Math.max(0, Math.min(1, frac)))}"/></svg>`;
+  };
+
+  function draw() {
+    clearInterval(playerTick); playerTick = null;
+    const st = steps[L.step];
+    const n = steps.length - 1;
+    const head = `<div class="pl-top">
+        <button class="icon-btn" data-pclose aria-label="Quitter">✕</button>
+        <div class="pl-title"><strong>${s.e} ${esc(s.title)}</strong><span>${st.kind === 'end' ? 'Terminé !' : `Étape ${L.step + 1}/${n}`}</span></div>
+        <span style="width:44px"></span>
+      </div>
+      <div class="pl-steps">${steps.slice(0, n).map((_, i) => `<i class="${i < L.step ? 'done' : i === L.step ? 'now' : ''}"></i>`).join('')}</div>`;
+    let body = '', foot = '';
+    const prevBtn = L.step > 0 ? `<button class="pl-prev" data-prev>‹ Étape précédente</button>` : '<span></span>';
+
+    if (st.kind === 'end') {
+      const mins = Math.max(1, Math.round((Date.now() - (L.start || Date.now())) / 60000));
+      body = `<div class="pl-illus pl-end">🎉</div>
+        <h1 class="pl-h">Séance terminée !</h1>
+        <p class="pl-sub">${mins} min · ${steps.filter((x) => x.kind === 'ex').length || steps.length - 1} ${s.items ? 'exercices' : 'étapes'} · tu peux être fière de toi 💪</p>`;
+      foot = `<button class="btn btn-primary btn-block pl-main" data-finish>Valider ma séance</button>${prevBtn}`;
+    } else if (st.kind === 'block') {
+      const total = st.d * 60000;
+      const left = L.blockEnd ? L.blockEnd - Date.now() : (L.blockLeft != null ? L.blockLeft : total);
+      const running = !!L.blockEnd, doneB = left <= 0;
+      body = `<div class="pl-illus">${ILLUS.render(st.illus)}</div>
+        <h1 class="pl-h">${esc(st.t)}</h1>
+        <p class="pl-txt">${esc(st.txt)}</p>
+        <div class="pl-timer">${ring(1 - left / total, doneB ? 'ok' : '')}<div class="pl-clock"><b id="pclock">${doneB ? '✓' : fmtClock(left)}</b><span>${doneB ? 'Terminé' : running ? 'en cours' : `${st.d} min`}</span></div></div>`;
+      foot = `${doneB
+        ? '<button class="btn btn-primary btn-block pl-main" data-next>Étape suivante →</button>'
+        : `<div class="grid2"><button class="btn ${running ? '' : 'btn-primary'} pl-main" data-btimer>${running ? '⏸ Pause' : (L.blockLeft != null ? '▶︎ Reprendre' : '▶︎ Chrono')}</button><button class="btn ${running ? 'btn-primary' : 'btn-soft'} pl-main" data-next>Suivant →</button></div>`}${prevBtn}`;
+    } else {
+      const x = st.x;
+      const reps = lv(x.reps, lvl);
+      const rec = x.kg ? recommend(x, lvl) : null;
+      const kg = x.kg ? (L.kgs[x.id] != null ? L.kgs[x.id] : rec.kg) : null;
+      const hist = loadHist(x.id);
+      const last = hist[hist.length - 1];
+      const howHtml = `<details class="pl-how"><summary>Comment faire</summary>
+          <p><b>Réglage :</b> ${esc(x.setup)}</p><ol>${x.how.map((h) => `<li>${esc(h)}</li>`).join('')}</ol><p class="avoid">⚠️ ${esc(x.avoid)}</p></details>`;
+      const top = `<div class="pl-illus">${ILLUS.render(st.illus)}</div>
+        <h1 class="pl-h">${esc(x.name)}</h1>
+        <p class="pl-sub">${esc(lv(x.where, lvl))}</p>`;
+      if (L.phase === 'rest') {
+        const total = x.rest * 1000, left = L.restEnd - Date.now();
+        body = `${top}<div class="pl-timer is-rest">${ring(left / total, 'is-rest')}<div class="pl-clock"><b id="pclock">${fmtClock(left)}</b><span>Repos</span></div></div>
+          <p class="pl-next">Ensuite : série ${L.set}/${x.sets} · ${esc(repsTxt(reps))}${kg != null ? ` à ${loadLabel(x, kg)}` : ''}</p>`;
+        foot = `<div class="grid2"><button class="btn pl-main" data-plus>+15 s</button><button class="btn btn-primary pl-main" data-skip>C'est reparti →</button></div>${prevBtn}`;
+      } else if (L.phase === 'feel') {
+        body = `${top}<div class="pl-feel"><p class="pl-q">Comment était la charge de <b>${loadLabel(x, kg)}</b> ?</p>
+          ${Object.entries(LOAD_FEELS).map(([k, l]) => `<button class="btn btn-block pl-feel-btn" data-lfeel="${k}">${l}</button>`).join('')}
+          <p class="field-hint" style="text-align:center">L'app ajustera la charge de ta prochaine séance.</p></div>`;
+        foot = prevBtn;
+      } else {
+        body = `${top}
+          <div class="pl-set"><span class="pl-badge">Série ${L.set}/${x.sets}</span>${/s$/.test(reps) ? `<b>${esc(reps)}</b><span>à tenir</span>` : `<b>${esc(reps.split(' ')[0])}</b><span>répétitions${esc(reps.slice(reps.split(' ')[0].length))}</span>`}</div>
+          <div class="pl-bubbles">${Array.from({ length: x.sets }, (_, i) => `<i class="${i + 1 < L.set ? 'done' : i + 1 === L.set ? 'now' : ''}"></i>`).join('')}</div>
+          ${x.kg ? `<div class="pl-load">
+            <div><span class="small muted">Charge conseillée</span><p class="pl-why">${esc(rec.why)}</p></div>
+            <div class="pl-kg"><button data-kg="-1" aria-label="Moins lourd">−</button><b>${loadLabel(x, kg)}</b><button data-kg="1" aria-label="Plus lourd">+</button></div>
+            ${last ? `<p class="field-hint" style="margin:6px 0 0">Dernière fois : ${loadLabel(x, last.kg)} · ${LOAD_FEELS[last.feel]}</p>` : ''}
+          </div>` : ''}
+          ${howHtml}`;
+        const lastSet = L.set >= x.sets;
+        foot = `<button class="btn btn-primary btn-block pl-main" data-setdone>${lastSet ? '✓ Dernière série faite' : `✓ Série faite → Repos ${fmtRest(x.rest)}`}</button>${prevBtn}`;
       }
+    }
+    pl.innerHTML = `<div class="pl-wrap">${head}<div class="pl-body">${body}</div><div class="pl-foot">${foot}</div></div>`;
+    bind();
+    if ((st.kind === 'block' && L.blockEnd) || (st.kind === 'ex' && L.phase === 'rest')) playerTick = setInterval(tick, 250);
+  }
+
+  function tick() {
+    const st = steps[L.step];
+    const clock = $('#pclock', pl), val = $('.pring-val', pl);
+    if (!clock || !val) return;
+    const C = 2 * Math.PI * 70;
+    if (st.kind === 'block') {
+      const total = st.d * 60000, left = L.blockEnd - Date.now();
+      if (left <= 0) { L.blockEnd = null; L.blockLeft = 0; save(); draw(); return; }
+      clock.textContent = fmtClock(left);
+      val.style.strokeDashoffset = C * (left / total);
+    } else {
+      const total = st.x.rest * 1000, left = L.restEnd - Date.now();
+      if (left <= 0) { L.phase = 'work'; L.restEnd = null; save(); draw(); flash(); return; }
+      clock.textContent = fmtClock(left);
+      val.style.strokeDashoffset = C * (1 - left / total);
+    }
+  }
+  function flash() {
+    const b = $('.pl-set', pl);
+    if (b) { b.classList.add('go'); const t = document.createElement('div'); t.className = 'pl-go'; t.textContent = 'C\'est reparti 💪'; pl.appendChild(t); setTimeout(() => t.remove(), 1600); }
+  }
+
+  function bind() {
+    const q = (sel) => $(sel, pl);
+    q('[data-pclose]').onclick = close;
+    const prev = q('[data-prev]');
+    if (prev) prev.onclick = () => go(L.step - 1);
+    const next = $$('[data-next]', pl);
+    next.forEach((b) => b.onclick = () => go(L.step + 1));
+    const bt = q('[data-btimer]');
+    if (bt) bt.onclick = () => {
+      const st = steps[L.step];
+      if (L.blockEnd) { L.blockLeft = L.blockEnd - Date.now(); L.blockEnd = null; }
+      else { L.blockEnd = Date.now() + (L.blockLeft != null && L.blockLeft > 0 ? L.blockLeft : st.d * 60000); }
+      save(); draw();
+    };
+    $$('[data-kg]', pl).forEach((b) => b.onclick = () => {
+      const x = steps[L.step].x;
+      const cur = L.kgs[x.id] != null ? L.kgs[x.id] : recommend(x, lvl).kg;
+      L.kgs[x.id] = Math.max(x.step, Math.round((cur + +b.dataset.kg * x.step) * 10) / 10);
+      save(); draw();
     });
-    bindSets();
-    exs.forEach((x) => { if ((live.sets[x.id] || 0) >= x.sets) $(`#gx-${x.id}`, sh).classList.add('ex-done'); });
-    $('[data-gclose]', sh).onclick = () => { closeSheet(); if (ui.tab === 'sport') render(); };
-    $('#gend', sh).onclick = () => { stopRest(); openToneDone(s); };
-    $('#greset', sh).onclick = () => { if (!confirm('Effacer les séries cochées ?')) return; live.sets = {}; save(); stopRest(); openGuided(s); };
-  });
+    const sd = q('[data-setdone]');
+    if (sd) sd.onclick = () => {
+      const x = steps[L.step].x;
+      if (L.set < x.sets) {
+        L.set++; L.phase = 'rest'; L.restEnd = Date.now() + x.rest * 1000;
+        save(); draw();
+      } else if (x.kg) { L.phase = 'feel'; save(); draw(); }
+      else go(L.step + 1);
+    };
+    const pls = q('[data-plus]');
+    if (pls) pls.onclick = () => { L.restEnd += 15000; save(); };
+    const sk = q('[data-skip]');
+    if (sk) sk.onclick = () => { L.phase = 'work'; L.restEnd = null; save(); draw(); };
+    $$('[data-lfeel]', pl).forEach((b) => b.onclick = () => {
+      const x = steps[L.step].x;
+      const kg = L.kgs[x.id] != null ? L.kgs[x.id] : recommend(x, lvl).kg;
+      S.sport.hist = S.sport.hist || {};
+      const h = S.sport.hist[x.id] || (S.sport.hist[x.id] = []);
+      h.push({ date: todayKey(), kg, feel: b.dataset.lfeel });
+      if (h.length > 30) h.shift();
+      const nxt = recommend(x, lvl);
+      toast(b.dataset.lfeel === 'ok' ? `👌 Noté ! Prochaine fois : ${loadLabel(x, nxt.kg)}` : `Noté ! Prochaine fois : ${loadLabel(x, nxt.kg)}`);
+      go(L.step + 1);
+    });
+    const fin = q('[data-finish]');
+    if (fin) fin.onclick = () => { close(); s.items ? openToneDone(s) : openSessionSheet(s); };
+  }
+  draw();
 }
 
 function openToneDone(s) {
   let feel = 'ok';
-  stopRest();
   openSheet(`${sheetHead(`${s.title} terminée 🎉`)}
     <div class="grid2">
       <label class="field"><span>Minutes</span><input id="tm" inputmode="numeric" value="${s.dur}"></label>
@@ -1551,6 +1658,7 @@ function openSessionSheet(s) {
         const e = $('#serr2', sh); e.textContent = 'Vérifie les minutes et les kcal.'; e.classList.remove('hidden'); return;
       }
       ensureDay(todayKey()).cardio.push({ id: uid(), act, min: Math.round(min), kcal: Math.round(kcal), session: s.id, feel });
+      if (S.sport.live && S.sport.live.sid === s.id) S.sport.live = null;
       save(); closeSheet();
       const fresh = checkCelebrations();
       render();
