@@ -203,15 +203,15 @@ function renderCourses(el) {
    Suivi : en-tête commun (Poids · Mesures · Cycle)
    ========================================================= */
 function suiviHead() {
-  const tabs = [['poids', 'Poids'], ['mesures', 'Mesures'], ['cycle', 'Cycle']];
+  const tabs = [['poids', 'Poids'], ['mesures', 'Mesures'], ['cycle', 'Cycle'], ['sommeil', 'Sommeil']];
   return `<div class="topbar"><div><h1 class="title">Suivi</h1></div></div>
-    <div class="seg seg3">${tabs.map(([id, l]) => `<button data-sv="${id}" aria-pressed="${ui.suivi === id}">${l}</button>`).join('')}</div>`;
+    <div class="seg seg4">${tabs.map(([id, l]) => `<button data-sv="${id}" aria-pressed="${ui.suivi === id}">${l}</button>`).join('')}</div>`;
 }
 function bindSuiviHead(el) {
   $$('[data-sv]', el).forEach((b) => b.onclick = () => { ui.suivi = b.dataset.sv; render(); window.scrollTo(0, 0); });
 }
 function renderSuivi(el) {
-  ({ poids: renderWeight, mesures: renderMesures, cycle: renderCycle }[ui.suivi || 'poids'])(el);
+  ({ poids: renderWeight, mesures: renderMesures, cycle: renderCycle, sommeil: renderSommeil }[ui.suivi || 'poids'])(el);
 }
 
 /* =========================================================

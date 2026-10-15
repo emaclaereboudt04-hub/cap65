@@ -336,7 +336,7 @@ function renderToday(el) {
       </div>
       <button class="icon-btn" data-day="1" aria-label="Jour suivant">›</button>
     </div>
-    ${banners}${isToday ? cycleChip() : ''}
+    ${banners}${isToday ? cycleChip() + sleepBanner() : ''}
     <div class="card ring-card">
       <div class="ring-wrap">
         <svg viewBox="0 0 220 220" aria-hidden="true">
@@ -877,6 +877,7 @@ function renderWeight(el) {
         <div class="item-kcal">${nf1(w.kg)} <small>kg</small></div>
         <button class="icon-btn" data-wdel="${w.date}" aria-label="Supprimer la pesée">✕</button></div>`;
     }).join('')}</div>` : ''}
+    ${needsCardHtml()}
     <div class="section-title">Réglages</div>
     <div class="card">
       <div class="grid2">
@@ -904,6 +905,7 @@ function renderWeight(el) {
 
   requestAnimationFrame(() => requestAnimationFrame(() => $$('[data-w]', el).forEach((b) => { b.style.width = b.dataset.w + '%'; })));
   bindSuiviHead(el);
+  bindNeeds(el, () => renderWeight(el));
   drawChart($('#chart', el));
 
   $('#wadd', el).onclick = () => {
@@ -915,7 +917,7 @@ function renderWeight(el) {
     save();
     const fresh = checkCelebrations();
     renderWeight(el);
-    if (!celebrateToast(fresh)) toast('Pesée enregistrée ⚖️');
+    if (!celebrateToast(fresh)) toast(needsProposal() ? '⚖️ Pesée enregistrée · ⚡ tes besoins ont évolué, regarde « Mes besoins »' : 'Pesée enregistrée ⚖️');
   };
   $$('[data-wdel]', el).forEach((b) => b.onclick = () => {
     const w = S.weights.find((x) => x.date === b.dataset.wdel);
