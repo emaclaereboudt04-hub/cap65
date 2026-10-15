@@ -280,62 +280,181 @@ const DISHES = [
     kcal: 480, prot: 36, moment: 'Soir', tip: 'Sans champignons pour lui ; ajoute-en dans ta part si tu veux.' },
 ];
 
-/* ---------- Programme sport : 4 séances de 45 min, cardio + un peu de renfo ----------
-   Chaque texte existe en 3 niveaux [doux, intermédiaire, intense]. */
+/* ---------- Programme sport ----------
+   Chaque texte existe en 3 niveaux [Doux, Intermédiaire, Intense].
+   Vitesses en km/h, inclinaisons en %, résistances = niveau affiché sur la machine. */
+const LEVELS = ['Doux', 'Intermédiaire', 'Intense'];
+
+/* 4 séances cardio de 45 min */
 const SESSIONS = [
   {
     id: 'A', e: '🚴‍♀️', act: 'Vélo', title: 'Vélo endurance + renfo jambes',
     blocks: [
-      { t: 'Échauffement', d: 5, txt: ['Vélo facile, résistance basse.', 'Vélo facile, résistance basse.', 'Vélo, résistance qui monte petit à petit.'] },
-      { t: 'Cardio', d: 25, txt: [
-        '25 min à allure confortable : tu peux parler sans être essoufflée.',
-        '25 min dont 5 × (2 min résistance +3 / 2 min normale).',
-        '25 min : 6 × (2 min forte résistance en danseuse / 1 min 30 récup).'] },
-      { t: 'Renfo', d: 12, renfo: true, txt: [
-        'Presse à cuisses 3×12 · Abducteurs machine 3×15 · Planche 3×20 s.',
-        'Presse à cuisses 3×12 (un peu plus lourd) · Fentes marchées 3×10/jambe · Planche 3×30 s.',
-        'Presse 4×10 · Hip thrust 3×12 · Fentes 3×12/jambe · Planche 3×40 s.'] },
-      { t: 'Retour au calme', d: 3, txt: ['Étirements quadriceps, fessiers, mollets.', 'Étirements quadriceps, fessiers, mollets.', 'Étirements quadriceps, fessiers, mollets.'] },
+      { t: 'Échauffement · vélo', d: 5, txt: [
+        'Résistance 3, 75-80 tours/min.',
+        'Résistance 4, 80 tours/min.',
+        'Résistance 4 → 6 (monte d\'un niveau par minute), 85 tours/min.'] },
+      { t: 'Cardio · vélo', d: 25, txt: [
+        'Résistance 5, 80 tours/min pendant 25 min. Tu dois pouvoir parler en phrases courtes.',
+        '5 × (2 min résistance 8 à 70 tours/min / 2 min résistance 5 à 85 tours/min), puis 5 min résistance 5.',
+        '6 × (2 min résistance 10 en danseuse à 65 tours/min / 1 min 30 résistance 5 assise), puis 4 min résistance 6.'] },
+      { t: 'Renfo jambes', d: 12, renfo: true, txt: [
+        'Presse à cuisses 3 × 12 à 40 kg (repos 1 min) · Abducteurs machine 3 × 15 à 25 kg · Planche 3 × 20 s.',
+        'Presse à cuisses 3 × 12 à 60 kg · Fentes marchées 3 × 10/jambe, haltères 2 × 4 kg · Planche 3 × 30 s.',
+        'Presse 4 × 10 à 80 kg · Hip thrust 3 × 12 à 40 kg · Fentes 3 × 12/jambe, 2 × 6 kg · Planche 3 × 40 s.'] },
+      { t: 'Retour au calme', d: 3, txt: [
+        'Quadriceps, fessiers, mollets : 30 s chacun.', 'Quadriceps, fessiers, mollets : 30 s chacun.', 'Quadriceps, fessiers, mollets : 30 s chacun.'] },
     ],
   },
   {
     id: 'B', e: '🏃‍♀️', act: 'Elliptique', title: 'Elliptique fractionné',
     blocks: [
-      { t: 'Échauffement', d: 8, txt: ['Elliptique tranquille.', 'Elliptique tranquille.', 'Elliptique, en accélérant un peu chaque minute.'] },
-      { t: 'Fractionné', d: 22, txt: [
-        '8 × (1 min rapide / 1 min 30 facile).',
-        '10 × (1 min rapide / 1 min facile) + 2 min facile.',
-        '6 × (2 min rapide / 1 min facile) + 4 × (30 s sprint / 30 s facile).'] },
-      { t: 'Marche inclinée', d: 10, txt: ['Tapis : pente 6 %, 5 km/h.', 'Tapis : pente 8 %, 5,2 km/h.', 'Tapis : pente 10-12 %, 5,5 km/h.'] },
-      { t: 'Étirements', d: 5, txt: ['Mollets, ischios, hanches.', 'Mollets, ischios, hanches.', 'Mollets, ischios, hanches.'] },
+      { t: 'Échauffement · elliptique', d: 8, txt: [
+        'Résistance 4, rythme tranquille (≈ 120 foulées/min).',
+        'Résistance 5, ≈ 125 foulées/min.',
+        'Résistance 5 → 7, ≈ 130 foulées/min.'] },
+      { t: 'Fractionné · elliptique', d: 22, txt: [
+        '8 × (1 min rapide résistance 7, ≈ 150 foulées/min / 1 min 30 lent résistance 4).',
+        '10 × (1 min rapide résistance 9, ≈ 155 foulées/min / 1 min lent résistance 5), puis 2 min lent.',
+        '6 × (2 min résistance 10, ≈ 150 foulées/min / 1 min résistance 5) + 4 × (30 s à fond / 30 s lent).'] },
+      { t: 'Marche inclinée · tapis', d: 10, txt: [
+        'Vitesse 4,5 km/h, inclinaison 6 %, sans tenir les barres.',
+        'Vitesse 5 km/h, inclinaison 8 %, sans tenir les barres.',
+        'Vitesse 5,5 km/h, inclinaison 10 %, sans tenir les barres.'] },
+      { t: 'Étirements', d: 5, txt: ['Mollets, ischios, hanches : 30 s chacun.', 'Mollets, ischios, hanches : 30 s chacun.', 'Mollets, ischios, hanches : 30 s chacun.'] },
     ],
   },
   {
     id: 'C', e: '🚣‍♀️', act: 'Rameur', title: 'Rameur + renfo haut du corps',
     blocks: [
-      { t: 'Échauffement', d: 5, txt: ['Rameur facile, on soigne la technique (jambes → dos → bras).', 'Rameur facile.', 'Rameur facile, 3 accélérations de 10 coups.'] },
-      { t: 'Cardio', d: 20, txt: [
-        '4 × 4 min à allure modérée / 1 min de repos.',
-        '4 × 5 min (cadence 24-26) / 1 min de repos.',
-        '5 × 500 m soutenus / 1 min 30 de repos.'] },
-      { t: 'Renfo', d: 15, renfo: true, txt: [
-        'Tirage vertical 3×12 · Développé épaules haltères (2-4 kg) 3×12 · Rowing haltère 3×12 · Gainage latéral 2×20 s/côté.',
-        'Tirage vertical 3×12 · Développé épaules 3×12 · Rowing 3×12 · Pompes sur les genoux 3×8 · Gainage latéral 3×25 s.',
-        'Tirage vertical 4×10 · Développé épaules 4×10 · Rowing 3×12 · Pompes 3×10 · Gainage latéral 3×30 s.'] },
-      { t: 'Étirements', d: 5, txt: ['Dos, épaules, pectoraux.', 'Dos, épaules, pectoraux.', 'Dos, épaules, pectoraux.'] },
+      { t: 'Échauffement · rameur', d: 5, txt: [
+        'Résistance (levier sur le côté) 4, 20 coups/min. Ordre du mouvement : jambes → dos → bras, puis bras → dos → jambes.',
+        'Résistance 5, 20-22 coups/min.',
+        'Résistance 5, 22 coups/min + 3 accélérations de 10 coups.'] },
+      { t: 'Cardio · rameur', d: 20, txt: [
+        'Résistance 4 : 4 × (4 min à 22 coups/min / 1 min de repos).',
+        'Résistance 5 : 4 × (5 min à 24-26 coups/min / 1 min de repos).',
+        'Résistance 6 : 5 × (500 m le plus régulier possible à 26-28 coups/min / 1 min 30 de repos).'] },
+      { t: 'Renfo haut du corps', d: 15, renfo: true, txt: [
+        'Tirage vertical 3 × 12 à 15 kg · Développé épaules 3 × 12, haltères 2 × 3 kg · Rowing poulie basse 3 × 12 à 15 kg · Gainage latéral 2 × 20 s/côté.',
+        'Tirage vertical 3 × 12 à 20 kg · Développé épaules 2 × 4 kg · Rowing 20 kg · Pompes sur les genoux 3 × 8 · Gainage latéral 3 × 25 s.',
+        'Tirage vertical 4 × 10 à 25 kg · Développé épaules 2 × 5 kg · Rowing 25 kg · Pompes 3 × 10 · Gainage latéral 3 × 30 s.'] },
+      { t: 'Étirements', d: 5, txt: ['Dos, épaules, pectoraux : 30 s chacun.', 'Dos, épaules, pectoraux : 30 s chacun.', 'Dos, épaules, pectoraux : 30 s chacun.'] },
     ],
   },
   {
     id: 'D', e: '⛰️', act: 'Marche inclinée', title: 'Marche inclinée + circuit',
     alt: 'Envie de changer ? Remplace-la par un cours collectif de 45 min (RPM, body pump, zumba…).',
     blocks: [
-      { t: 'Marche inclinée', d: 30, txt: ['Pente 8 %, 5 km/h, sans tenir les barres.', 'Pente 10 %, 5,3 km/h.', 'Pente 12 %, 5,5 km/h.'] },
+      { t: 'Marche inclinée · tapis', d: 30, txt: [
+        '5 min vitesse 4 km/h, inclinaison 4 % → puis 25 min vitesse 4,5 km/h, inclinaison 8 %. Sans tenir les barres.',
+        '5 min vitesse 4,5 km/h, inclinaison 5 % → puis 25 min vitesse 5 km/h, inclinaison 10 %.',
+        '5 min vitesse 4,5 km/h, inclinaison 6 % → puis 25 min vitesse 5,2 km/h, inclinaison 12 %.'] },
       { t: 'Circuit machines', d: 12, txt: [
-        '2 tours : 10 squats · 10 tirages · 20 s de planche · 1 min de vélo rapide.',
-        '3 tours : 12 squats · 12 tirages · 30 s de planche · 1 min de vélo rapide.',
-        '4 tours : 15 squats sautés · 12 tirages · 40 s de planche · 1 min de vélo à fond.'] },
-      { t: 'Étirements', d: 3, txt: ['Mollets, fessiers, dos.', 'Mollets, fessiers, dos.', 'Mollets, fessiers, dos.'] },
+        '2 tours : 10 squats poids du corps · 10 tirages verticaux à 15 kg · 20 s de planche · 1 min de vélo résistance 6.',
+        '3 tours : 12 squats avec haltère 6 kg · 12 tirages à 20 kg · 30 s de planche · 1 min de vélo résistance 8.',
+        '4 tours : 15 squats sautés · 12 tirages à 25 kg · 40 s de planche · 1 min de vélo résistance 10.'] },
+      { t: 'Étirements', d: 3, txt: ['Mollets, fessiers, dos : 30 s chacun.', 'Mollets, fessiers, dos : 30 s chacun.', 'Mollets, fessiers, dos : 30 s chacun.'] },
     ],
   },
 ];
-const LEVELS = ['Doux', 'Intermédiaire', 'Intense'];
+
+/* Séances de tonification (jours au choix), très détaillées.
+   Un élément = un bloc cardio { block: true } ou un exercice. Les tableaux [3] suivent le niveau. */
+const TONE_SESSIONS = [
+  {
+    id: 'H', e: '💪', act: 'Renfo haut du corps', title: 'Haut du corps tonique', focus: 'Dos, épaules, bras, posture', dur: 50, kcal: 200,
+    items: [
+      { block: true, t: 'Échauffement · marche inclinée', d: 8, txt: [
+        'Tapis : vitesse 4 km/h, inclinaison 6 %, 8 min, sans tenir les barres.',
+        'Tapis : vitesse 4,5 km/h, inclinaison 8 %, 8 min, sans tenir les barres.',
+        'Tapis : vitesse 5 km/h, inclinaison 10 %, 8 min, sans tenir les barres.'] },
+      { block: true, t: 'Mobilité épaules', d: 2, txt: [
+        '10 grands cercles de bras vers l\'avant, 10 vers l\'arrière, puis 10 rotations d\'épaules.',
+        '10 grands cercles de bras vers l\'avant, 10 vers l\'arrière, puis 10 rotations d\'épaules.',
+        '10 grands cercles de bras vers l\'avant, 10 vers l\'arrière, puis 10 rotations d\'épaules.'] },
+      { id: 'tirage-vertical', name: 'Tirage vertical', where: 'Machine à poulie haute, grande barre', sets: 3, reps: '12', rest: 75, load: ['15 kg', '20 kg', '25 kg'],
+        setup: 'Règle le boudin pour qu\'il bloque le haut de tes cuisses. Mains sur la barre un peu plus écartées que les épaules, paumes vers l\'avant.',
+        how: ['Assise, penche légèrement le buste en arrière (comme 10 h sur une horloge).', 'Tire la barre jusqu\'en haut de ta poitrine en serrant les omoplates, coudes vers les côtes.', 'Remonte en 2 secondes jusqu\'à avoir les bras presque tendus.'],
+        avoid: 'Ne tire jamais derrière la nuque et ne te balance pas pour tirer.' },
+      { id: 'rowing-poulie', name: 'Rowing assis à la poulie basse', where: 'Poulie basse, poignée en triangle', sets: 3, reps: '12', rest: 75, load: ['15 kg', '20 kg', '25 kg'],
+        setup: 'Pieds sur les cales, genoux légèrement pliés. Assise bien droite, poitrine sortie.',
+        how: ['Tire la poignée vers ton nombril, coudes le long du corps.', 'Serre les omoplates 1 seconde, comme pour coincer un crayon entre elles.', 'Reviens en 2 secondes en gardant le dos droit.'],
+        avoid: 'N\'arrondis pas le dos en revenant et ne te penche pas en arrière pour tirer.' },
+      { id: 'developpe-epaules', name: 'Développé épaules aux haltères', where: 'Banc avec dossier droit (90°) + 2 haltères', sets: 3, reps: '10', rest: 75, load: ['2 × 3 kg', '2 × 4 kg', '2 × 5 kg'],
+        setup: 'Règle le dossier à la verticale. Assise, dos collé au dossier, haltères à hauteur des oreilles, paumes vers l\'avant.',
+        how: ['Pousse les haltères au-dessus de ta tête sans les cogner.', 'Redescends en 2 secondes jusqu\'à hauteur du menton.', 'Garde les abdos serrés pour ne pas creuser le bas du dos.'],
+        avoid: 'Ne verrouille pas les coudes en haut et ne cambre pas.' },
+      { id: 'elevations-laterales', name: 'Élévations latérales', where: 'Debout, 2 haltères', sets: 3, reps: '12', rest: 60, load: ['2 × 2 kg', '2 × 3 kg', '2 × 4 kg'],
+        setup: 'Debout, pieds largeur de hanches, genoux souples, haltères le long des cuisses.',
+        how: ['Monte les bras sur les côtés, coudes très légèrement pliés, jusqu\'à hauteur des épaules (pas plus haut).', 'Imagine que tu verses une carafe : les petits doigts légèrement plus hauts.', 'Redescends lentement en 3 secondes.'],
+        avoid: 'Ne hausse pas les épaules vers les oreilles et ne donne pas d\'élan.' },
+      { id: 'curl-biceps', name: 'Curl biceps (superset 1/2)', where: 'Debout, 2 haltères', sets: 2, reps: '12', rest: 0, load: ['2 × 3 kg', '2 × 4 kg', '2 × 5 kg'],
+        setup: 'Coudes collés au corps, paumes vers l\'avant.',
+        how: ['Plie les coudes pour monter les haltères vers les épaules.', 'Redescends en 2 secondes jusqu\'aux bras tendus.', '👉 Enchaîne tout de suite avec l\'extension triceps, sans pause.'],
+        avoid: 'Les coudes ne bougent pas vers l\'avant et tu ne te balances pas.' },
+      { id: 'triceps-corde', name: 'Extension triceps à la corde (superset 2/2)', where: 'Poulie haute, poignée corde', sets: 2, reps: '12', rest: 60, load: ['7,5 kg', '10 kg', '12,5 kg'],
+        setup: 'Face à la poulie, un pied légèrement devant l\'autre, coudes collés aux côtes.',
+        how: ['Pousse la corde vers le bas jusqu\'aux bras tendus en écartant un peu les mains en bas.', 'Remonte jusqu\'à ce que tes avant-bras soient à l\'horizontale, pas plus haut.', 'Repos 60 s, puis refais curl + triceps.'],
+        avoid: 'Les coudes restent fixes contre ton corps.' },
+      { id: 'pompes-inclinees', name: 'Pompes inclinées', where: ['Mains sur la barre de la Smith machine à hauteur de hanche', 'Mains sur un banc', 'Au sol, sur les genoux ou les pieds'], sets: 2, reps: '10', rest: 60, load: null,
+        setup: 'Mains un peu plus larges que les épaules, corps bien aligné de la tête aux talons (ou aux genoux).',
+        how: ['Descends la poitrine vers l\'appui en 2 secondes, coudes à 45° du corps.', 'Pousse pour remonter en soufflant.'],
+        avoid: 'Ne laisse pas tomber les hanches et ne lève pas les fesses.' },
+      { id: 'planche', name: 'Planche (gainage)', where: 'Au sol, sur un tapis', sets: 3, reps: ['20 s', '30 s', '40 s'], rest: 30, load: null,
+        setup: 'Sur les avant-bras, coudes sous les épaules, pieds joints.',
+        how: ['Serre les fessiers et les abdos, rentre le nombril.', 'Corps aligné comme une planche, respire normalement.'],
+        avoid: 'Ni fesses en l\'air, ni dos creusé.' },
+      { block: true, t: 'Étirements', d: 5, txt: [
+        'Dos : mains sur un poteau, recule les hanches, 30 s · Pectoraux : main contre un mur, tourne-toi, 30 s/côté · Triceps : main derrière la tête, 30 s/côté · Épaules : bras croisé devant, 30 s/côté.',
+        'Dos : mains sur un poteau, recule les hanches, 30 s · Pectoraux : main contre un mur, tourne-toi, 30 s/côté · Triceps : main derrière la tête, 30 s/côté · Épaules : bras croisé devant, 30 s/côté.',
+        'Dos : suspendue à une barre, 20 s · Pectoraux : main contre un mur, 30 s/côté · Triceps : 30 s/côté · Épaules : bras croisé devant, 30 s/côté.'] },
+    ],
+  },
+  {
+    id: 'L', e: '🍑', act: 'Renfo bas du corps', title: 'Bas du corps & fessiers', focus: 'Fessiers, cuisses, ischios', dur: 55, kcal: 230,
+    items: [
+      { block: true, t: 'Échauffement · vélo', d: 6, txt: [
+        'Vélo : résistance 4, 80 tours/min, 6 min.',
+        'Vélo : résistance 5, 85 tours/min, 6 min.',
+        'Vélo : résistance 6, 90 tours/min, 6 min.'] },
+      { block: true, t: 'Activation', d: 2, txt: [
+        '15 squats au poids du corps · 10 fentes arrière par jambe · 15 ponts fessiers au sol.',
+        '15 squats au poids du corps · 10 fentes arrière par jambe · 15 ponts fessiers au sol.',
+        '15 squats au poids du corps · 10 fentes arrière par jambe · 20 ponts fessiers au sol.'] },
+      { id: 'presse', name: 'Presse à cuisses', where: 'Presse inclinée (45°)', sets: 4, reps: '12', rest: 90, load: ['40 kg', '60 kg', '80 kg'],
+        setup: 'Dos et fesses collés au dossier. Pieds au milieu du plateau, écartés largeur de hanches (pieds plus hauts = plus de fessiers). Charge = disques ajoutés, sans compter le chariot.',
+        how: ['Déverrouille les sécurités.', 'Descends en 3 secondes jusqu\'à ce que tes genoux forment un angle droit (90°).', 'Pousse par les talons en soufflant.'],
+        avoid: 'Ne verrouille jamais les genoux en haut et ne décolle pas les fesses du dossier.' },
+      { id: 'hip-thrust', name: 'Hip thrust', where: 'Machine hip thrust, ou barre + mousse avec le dos sur un banc', sets: 4, reps: '12', rest: 90, load: ['20 kg (barre seule)', '30-40 kg', '50 kg'],
+        setup: 'Haut du dos (sous les omoplates) contre le banc, barre au pli des hanches avec la mousse. Pieds à plat, écartés largeur de hanches.',
+        how: ['Monte les hanches jusqu\'à l\'horizontale : en haut, tes tibias sont verticaux.', 'Serre fort les fessiers 2 secondes en haut, menton rentré, regard devant toi.', 'Redescends en 2 secondes.'],
+        avoid: 'Ne cambre pas le bas du dos en haut et ne regarde pas le plafond.' },
+      { id: 'fentes-arriere', name: 'Fentes arrière', where: 'Debout, 2 haltères (ou à la Smith machine)', sets: 3, reps: '10 / jambe', rest: 60, load: ['2 × 4 kg', '2 × 6 kg', '2 × 8 kg'],
+        setup: 'Debout, pieds largeur de hanches, haltères le long du corps.',
+        how: ['Fais un grand pas en arrière ; le genou arrière descend jusqu\'à frôler le sol.', 'Genou avant au-dessus de la cheville, buste légèrement penché en avant pour travailler les fessiers.', 'Pousse sur le talon avant pour revenir. Enchaîne les 10 d\'une jambe, puis l\'autre.'],
+        avoid: 'Le genou avant ne rentre pas vers l\'intérieur.' },
+      { id: 'leg-curl', name: 'Leg curl (ischios)', where: 'Machine leg curl assise ou allongée', sets: 3, reps: '12', rest: 60, load: ['15 kg', '20-25 kg', '30 kg'],
+        setup: 'Aligne ton genou avec l\'axe de rotation de la machine (souvent marqué d\'un point de couleur). Rouleau juste au-dessus des chevilles.',
+        how: ['Plie les jambes en 1 seconde.', 'Remonte en contrôlant pendant 3 secondes.'],
+        avoid: 'Ne décolle pas les hanches du siège.' },
+      { id: 'abducteurs', name: 'Abducteurs (machine)', where: 'Machine abducteurs (écartement des cuisses)', sets: 3, reps: '15', rest: 45, load: ['25 kg', '35 kg', '45 kg'],
+        setup: 'Règle l\'écartement de départ au plus serré. Penche le buste légèrement en avant pour cibler le haut des fessiers.',
+        how: ['Écarte les jambes au maximum et tiens 1 seconde.', 'Reviens en 2 secondes sans laisser claquer les poids.'],
+        avoid: 'Ne te sers pas de l\'élan.' },
+      { id: 'kickback', name: 'Kickback fessier à la poulie', where: 'Poulie basse + sangle de cheville', sets: 2, reps: '12 / jambe', rest: 45, load: ['5 kg', '7,5 kg', '10 kg'],
+        setup: 'Sangle autour de la cheville, mains sur la machine, buste penché en avant, genou d\'appui légèrement plié.',
+        how: ['Pousse la jambe vers l\'arrière et un peu vers le haut, comme une ruade, jambe presque tendue.', 'Serre le fessier 1 seconde en haut, reviens lentement.'],
+        avoid: 'Ne cambre pas le bas du dos : le mouvement vient de la fesse.' },
+      { block: true, t: 'Finisher · marche inclinée', d: 10, txt: [
+        'Tapis : vitesse 4 km/h, inclinaison 8 %, 10 min, mains hors des barres.',
+        'Tapis : vitesse 4,5 km/h, inclinaison 10 %, 10 min, mains hors des barres.',
+        'Tapis : vitesse 5 km/h, inclinaison 12 %, 10 min, mains hors des barres.'] },
+      { block: true, t: 'Étirements', d: 5, txt: [
+        'Quadriceps debout (talon à la fesse) 30 s/jambe · Ischios (jambe tendue sur un banc) 30 s/jambe · Fessiers (cheville sur le genou opposé, assise) 30 s/côté · Adducteurs en papillon 30 s · Mollets contre un mur 30 s/jambe.',
+        'Quadriceps debout (talon à la fesse) 30 s/jambe · Ischios (jambe tendue sur un banc) 30 s/jambe · Fessiers (cheville sur le genou opposé, assise) 30 s/côté · Adducteurs en papillon 30 s · Mollets contre un mur 30 s/jambe.',
+        'Quadriceps debout (talon à la fesse) 30 s/jambe · Ischios (jambe tendue sur un banc) 30 s/jambe · Fessiers (cheville sur le genou opposé, assise) 30 s/côté · Adducteurs en papillon 30 s · Mollets contre un mur 30 s/jambe.'] },
+    ],
+  },
+];
+const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];

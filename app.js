@@ -75,7 +75,7 @@ function freshState() {
     quotas: {},
     celebrated: {},
     recipes: [],
-    sport: { adjust: 0 },
+    sport: { adjust: 0, days: {}, loads: {}, live: null },
   };
 }
 function load() {
@@ -134,7 +134,7 @@ function weekStats(mon) {
     const d = dayOf(k);
     const t = totals(k);
     d.meals.forEach((m) => { if (m.ecart && used[m.ecart] !== undefined) { used[m.ecart]++; ecartList.push({ k, m }); } });
-    cardio += d.cardio.length;
+    cardio += d.cardio.filter((c) => c.kind !== 'renfo').length;
     if (t.prot >= S.settings.prot) protDays++;
     if (waterOk(k)) waterDays++;
     if (t.logged) { logged++; if (t.eaten <= t.budget) under++; }
@@ -190,7 +190,7 @@ function openSheet(html, onMount) {
   sheet.scrollTop = 0;
   if (onMount) onMount(sheet);
 }
-function closeSheet() { $('#sheet').hidden = true; $('#sheet-backdrop').hidden = true; $('#sheet').innerHTML = ''; }
+function closeSheet() { stopRest(); $('#sheet').hidden = true; $('#sheet-backdrop').hidden = true; $('#sheet').innerHTML = ''; }
 $('#sheet-backdrop').addEventListener('click', closeSheet);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 const sheetHead = (t) => `<div class="sheet-head"><h2>${t}</h2><button class="icon-btn" data-close aria-label="Fermer">✕</button></div>`;
@@ -269,6 +269,10 @@ function renderToday(el) {
     if (wd === 0 && now.getHours() >= 18) {
       banners += `<button class="banner" data-go="defi"><span class="b-emoji">✨</span><span>Ton récap de la semaine est prêt</span><span class="b-go">›</span></button>`;
     }
+    const wdi = (wd + 6) % 7;
+    TONE_SESSIONS.filter((s) => toneDays(s.id).includes(wdi) && !dayOf(tk).cardio.some((c) => c.session === s.id)).forEach((s) => {
+      banners += `<button class="banner" data-go="sport"><span class="b-emoji">${s.e}</span><span>Aujourd'hui : séance ${s.title.toLowerCase()} !</span><span class="b-go">›</span></button>`;
+    });
     if ((wd === 5 || wd === 6 || wd === 0) && !weighed) {
       banners += `<button class="banner" data-go="weight"><span class="b-emoji">⚖️</span><span>${wd === 5 ? "C'est vendredi : petite pesée ce matin ?" : 'Pas encore de pesée cette semaine'}</span><span class="b-go">›</span></button>`;
     }
@@ -297,11 +301,11 @@ function renderToday(el) {
         </div>`).join('')}</div></div>`;
   }).join('');
 
-  const cardio = d.cardio.length ? `<div class="moment"><div class="moment-head"><span>Cardio</span><span>+${nf(t.bonus)} kcal au budget</span></div>
+  const cardio = d.cardio.length ? `<div class="moment"><div class="moment-head"><span>Sport</span><span>+${nf(t.bonus)} kcal au budget</span></div>
     <div class="list">${d.cardio.map((c) => `
       <div class="item">
         <div class="item-main">
-          <div class="item-name">${(ACTIVITIES.find((a) => a.n === c.act) || {}).e || '💪'} ${esc(c.act)}</div>
+          <div class="item-name">${(ACTIVITIES.find((a) => a.n === c.act) || TONE_SESSIONS.find((t) => t.id === c.session) || {}).e || '💪'} ${esc(c.act)}</div>
           <div class="item-sub">${nf(c.min)} min · ${nf(c.kcal)} kcal machine</div>
         </div>
         <div class="item-kcal">+${nf(Math.round(c.kcal / 2))} <small>kcal</small></div>
@@ -1252,28 +1256,67 @@ function sessionsDone(mon) {
   return done;
 }
 const FEELS = { easy: '😌 Trop facile', ok: '👌 Parfait', hard: '🥵 Trop dur' };
+const lv = (x, lvl) => (Array.isArray(x) ? x[lvl - 1] : x);
+const fmtRest = (s) => (s >= 60 ? `${Math.floor(s / 60)} min${s % 60 ? ' ' + pad(s % 60) : ''}` : `${s} s`);
+const toneDays = (id) => (S.sport.days && S.sport.days[id]) || [];
+const todayWd = () => (new Date().getDay() + 6) % 7; // 0 = lundi
+
+function exerciseHtml(x, lvl, n) {
+  const reps = lv(x.reps, lvl), load = x.load ? lv(x.load, lvl) : null;
+  return `<li class="ex">
+    <div class="ex-head"><span class="ex-num">${n}</span><div><strong>${esc(x.name)}</strong><span>${esc(lv(x.where, lvl))}</span></div></div>
+    <div class="ex-meta">
+      <span>🔁 ${x.sets} × ${esc(reps)}</span>
+      ${load ? `<span>🏋️ ${esc(load)}</span>` : ''}
+      <span>⏱️ ${x.rest ? 'repos ' + fmtRest(x.rest) : 'sans pause'}</span>
+    </div>
+    <details class="ex-more"><summary>Comment faire</summary>
+      <p><b>Réglage :</b> ${esc(x.setup)}</p>
+      <ol>${x.how.map((h) => `<li>${esc(h)}</li>`).join('')}</ol>
+      <p class="avoid">⚠️ ${esc(x.avoid)}</p>
+    </details>
+    ${x.load ? `<label class="ex-load"><span>Ma charge</span><input data-load="${x.id}" value="${esc(S.sport.loads[x.id] || '')}" placeholder="${esc(load)}" autocomplete="off"></label>` : ''}
+  </li>`;
+}
+function blockHtml(b, lvl) {
+  return `<li class="ex ex-block"><div class="ex-head"><span class="ex-num b-min">${b.d}′</span><div><strong>${esc(b.t)}</strong><span>${esc(b.txt[lvl - 1])}</span></div></div></li>`;
+}
+function toneListHtml(s, lvl) {
+  let n = 0;
+  return `<ol class="ex-list">${s.items.map((it) => (it.block ? blockHtml(it, lvl) : exerciseHtml(it, lvl, ++n))).join('')}</ol>`;
+}
+function bindLoads(root) {
+  $$('[data-load]', root).forEach((inp) => inp.oninput = () => {
+    const v = inp.value.trim();
+    if (v) S.sport.loads[inp.dataset.load] = v; else delete S.sport.loads[inp.dataset.load];
+    save();
+  });
+}
 
 function renderSport(el) {
   const tk = todayKey(), mon = mondayOf(tk), w = weekIndex(tk);
   const lvl = sportLevel(w);
   const done = sessionsDone(mon);
-  const nDone = Object.keys(done).length;
+  const nDone = SESSIONS.filter((s) => done[s.id]).length;
   const feels = Object.values(done).map((d) => d.feel).filter(Boolean);
   const easy = feels.filter((f) => f === 'easy').length, hard = feels.filter((f) => f === 'hard').length;
   let advice = '';
   if (easy >= 2 && lvl < 3) advice = `<div class="explain">😌 ${easy} séances « trop faciles » cette semaine : tu es prête à monter d'un cran ! <button class="btn btn-sm btn-primary" data-adj="1" style="margin-top:8px;width:100%">Passer au niveau ${LEVELS[lvl]}</button></div>`;
   else if (hard >= 2 && lvl > 1) advice = `<div class="kind">🥵 ${hard} séances « trop dures » : aucun souci, on adapte. <button class="btn btn-sm" data-adj="-1" style="margin-top:8px;width:100%">Revenir au niveau ${LEVELS[lvl - 2]}</button></div>`;
 
-  const card = (s) => {
+  const doneHead = (d) => d ? '<div class="goal done" style="border:0;padding:0"><div class="goal-check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div>' : '';
+  const doneLine = (d) => `Faite ${fmtDay(d.k, { weekday: 'long' })}${d.feel ? ' · ' + FEELS[d.feel] : ''}${d.kcal ? ` · ${nf(d.kcal)} kcal` : ''}`;
+
+  const cardioCard = (s) => {
     const d = done[s.id];
     const total = s.blocks.reduce((a, b) => a + b.d, 0);
     return `<article class="card session ${d ? 'is-done' : ''}">
       <div class="dish-head">
         <div class="dish-emoji">${s.e}</div>
         <div style="flex:1"><h2>Séance ${s.id} · ${s.title}</h2><p>${total} min${s.blocks.some((b) => b.renfo) ? ' · cardio + renfo' : ' · 100 % cardio'}</p></div>
-        ${d ? '<div class="goal done" style="border:0;padding:0"><div class="goal-check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div>' : ''}
+        ${doneHead(d)}
       </div>
-      <details ${d ? '' : 'open'}><summary>${d ? `Faite ${fmtDay(d.k, { weekday: 'long' })}${d.feel ? ' · ' + FEELS[d.feel] : ''}${d.kcal ? ` · ${nf(d.kcal)} kcal` : ''}` : 'Voir le déroulé'}</summary>
+      <details ${d ? '' : 'open'}><summary>${d ? doneLine(d) : 'Voir le déroulé'}</summary>
         <ol class="blocks">${s.blocks.map((b) => `<li class="${b.renfo ? 'renfo' : ''}"><span class="b-min">${b.d}′</span><div><strong>${b.t}</strong><span>${b.txt[lvl - 1]}</span></div></li>`).join('')}</ol>
         ${s.alt ? `<p class="tip">🔄 ${s.alt}</p>` : ''}
       </details>
@@ -1281,29 +1324,61 @@ function renderSport(el) {
     </article>`;
   };
 
+  const toneCard = (s) => {
+    const d = done[s.id];
+    const days = toneDays(s.id);
+    const nEx = s.items.filter((i) => !i.block).length;
+    const live = S.sport.live && S.sport.live.sid === s.id && S.sport.live.date === tk;
+    return `<article class="card session tone ${d ? 'is-done' : ''}">
+      <div class="dish-head">
+        <div class="dish-emoji">${s.e}</div>
+        <div style="flex:1"><h2>${s.title}</h2><p>${s.focus} · ≈ ${s.dur} min · ${nEx} exercices</p></div>
+        ${doneHead(d)}
+      </div>
+      <div class="group-lbl" style="margin:4px 0 6px">Mes jours</div>
+      <div class="chips days">${WEEKDAYS.map((wd, i) => `<button class="chip" data-tday="${s.id}:${i}" aria-pressed="${days.includes(i)}">${wd}</button>`).join('')}</div>
+      ${d ? `<p class="small" style="color:var(--good);font-weight:800;margin:10px 0 0">✓ ${doneLine(d)}</p>` : ''}
+      <details class="ex-details"><summary>Voir tous les exercices en détail</summary>${toneListHtml(s, lvl)}</details>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn btn-primary" data-tstart="${s.id}">▶︎ ${live ? 'Reprendre' : 'Mode guidé'}</button>
+        <button class="btn btn-soft" data-tdone="${s.id}">✓ C'est fait</button>
+      </div>
+    </article>`;
+  };
+
   el.innerHTML = `
     <div class="topbar"><div><h1 class="title">Mon programme</h1>
-      <p class="subtitle"><span class="week-pill">${w >= 1 ? `Semaine ${w}` : 'Rodage'}</span> &nbsp;4 séances de 45 min</p></div></div>
+      <p class="subtitle"><span class="week-pill">${w >= 1 ? `Semaine ${w}` : 'Rodage'}</span> &nbsp;Cardio + tonification</p></div></div>
     <div class="card">
-      <div class="bar-head"><strong>Cette semaine</strong><span>${nDone}/4 séances</span></div>
+      <div class="bar-head"><strong>Cardio cette semaine</strong><span>${nDone}/4 séances</span></div>
       <div class="bar"><i class="${nDone >= 4 ? 'done' : ''}" data-w="${Math.min(100, nDone * 25)}"></i></div>
       <div class="level">
         <div><span class="small muted">Niveau</span><strong>${LEVELS[lvl - 1]}</strong></div>
         <div class="level-dots">${[1, 2, 3].map((n) => `<i class="${n <= lvl ? 'on' : ''}"></i>`).join('')}</div>
         <span class="stepper"><button data-adj="-1" aria-label="Plus doux" ${lvl <= 1 ? 'disabled' : ''}>−</button><button data-adj="1" aria-label="Plus intense" ${lvl >= 3 ? 'disabled' : ''}>+</button></span>
       </div>
-      <p class="field-hint">Le niveau monte tout seul (semaines 1-2 doux, 3-5 intermédiaire, 6+ intense). Dis-moi après chaque séance comment tu l'as vécue : on ajuste ensemble.</p>
+      <p class="field-hint">Le niveau change toutes les vitesses, inclinaisons et charges du programme. Il monte tout seul (semaines 1-2 doux, 3-5 intermédiaire, 6+ intense) et s'ajuste avec ton ressenti.</p>
       ${advice}
     </div>
-    ${SESSIONS.map(card).join('')}
+
+    <div class="section-title">Tonification <small>jours au choix</small></div>
+    <p class="subtitle" style="margin:-4px 4px 12px">Choisis tes jours : l'app te le rappelle le matin. Le mode guidé affiche chaque série et lance le minuteur de repos.</p>
+    ${TONE_SESSIONS.map(toneCard).join('')}
+
+    <div class="section-title">Cardio <small>4 séances de 45 min</small></div>
+    ${SESSIONS.map(cardioCard).join('')}
     <button class="btn btn-soft btn-block" id="sfree">＋ Séance libre (autre cardio)</button>
+
     <div class="card" style="margin-top:14px">
-      <h2>Pourquoi un peu de renfo ?</h2>
-      <p class="small muted" style="margin:0">Le cardio brûle des calories, le renfo garde (et dessine) tes muscles pendant la perte de poids : tu perds du gras, pas du muscle, et ta silhouette devient plus tonique. 2 × 12-15 min par semaine suffisent. Choisis des charges avec lesquelles les 2 dernières répétitions sont difficiles mais propres.</p>
-      <p class="small muted" style="margin:10px 0 0">💧 Un verre d'eau avant et après chaque séance : il compte dans ton défi eau.</p>
+      <h2>Les règles d'or</h2>
+      <p class="small muted" style="margin:0 0 8px"><b>Les charges indiquées sont un point de départ.</b> La bonne charge : les 2 dernières répétitions sont dures, mais le mouvement reste propre. Note ta charge dans « Ma charge », l'app s'en souvient.</p>
+      <p class="small muted" style="margin:0 0 8px"><b>Pour progresser :</b> si tu réussis toutes les répétitions facilement 2 séances de suite, ajoute +1 kg par haltère, ou +2,5 kg (haut du corps) / +5 kg (jambes) sur les machines.</p>
+      <p class="small muted" style="margin:0 0 8px"><b>Les niveaux de résistance</b> varient d'une marque de machine à l'autre : si c'est trop dur ou trop facile, ajuste de 1 ou 2 niveaux.</p>
+      <p class="small muted" style="margin:0">💧 Un verre d'eau avant et après chaque séance : il compte dans ton défi eau. Évite de faire « Bas du corps » deux jours de suite : 48 h de récupération pour les muscles.</p>
     </div>`;
 
   requestAnimationFrame(() => requestAnimationFrame(() => $$('[data-w]', el).forEach((b) => { b.style.width = b.dataset.w + '%'; })));
+  bindLoads(el);
   $$('[data-adj]', el).forEach((b) => b.onclick = () => {
     const d = +b.dataset.adj;
     const next = sportLevel(w) + d;
@@ -1311,8 +1386,142 @@ function renderSport(el) {
     S.sport.adjust = (S.sport.adjust || 0) + d; save(); renderSport(el);
     toast(d > 0 ? `💪 Niveau ${LEVELS[next - 1]} activé` : `🌿 Niveau ${LEVELS[next - 1]} : on y va en douceur`);
   });
+  $$('[data-tday]', el).forEach((b) => b.onclick = () => {
+    const [id, i] = b.dataset.tday.split(':');
+    S.sport.days = S.sport.days || {};
+    const set = new Set(toneDays(id));
+    set.has(+i) ? set.delete(+i) : set.add(+i);
+    S.sport.days[id] = [...set].sort();
+    b.setAttribute('aria-pressed', set.has(+i));
+    save();
+  });
   $$('[data-sdo]', el).forEach((b) => b.onclick = () => openSessionSheet(SESSIONS.find((s) => s.id === b.dataset.sdo)));
+  $$('[data-tstart]', el).forEach((b) => b.onclick = () => openGuided(TONE_SESSIONS.find((s) => s.id === b.dataset.tstart)));
+  $$('[data-tdone]', el).forEach((b) => b.onclick = () => openToneDone(TONE_SESSIONS.find((s) => s.id === b.dataset.tdone)));
   $('#sfree', el).onclick = () => { ui.day = todayKey(); openCardioSheet(); };
+}
+
+/* ---------- Mode guidé (séries + minuteur de repos) ---------- */
+let restTimer = null;
+function beep() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ctx = beep.ctx || (beep.ctx = new AC());
+    [0, 0.25].forEach((t) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.25, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.2);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.2);
+    });
+  } catch (e) { /* son indisponible */ }
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+function stopRest() { clearInterval(restTimer); restTimer = null; }
+function startRest(sh, secs, label) {
+  stopRest();
+  const bar = $('#rest', sh);
+  const end = Date.now() + secs * 1000;
+  bar.hidden = false;
+  const tick = () => {
+    const left = Math.max(0, Math.round((end - Date.now()) / 1000));
+    bar.innerHTML = `<div class="rest-fill" style="width:${(left / secs) * 100}%"></div>
+      <span class="rest-txt">${left ? `⏱️ Repos ${Math.floor(left / 60)}:${pad(left % 60)}` : '💪 C\'est reparti !'}</span>
+      <span class="rest-next">${esc(label)}</span>
+      <button data-rskip>${left ? 'Passer' : 'OK'}</button>`;
+    $('[data-rskip]', bar).onclick = () => { stopRest(); bar.hidden = true; };
+    if (!left) { stopRest(); beep(); setTimeout(() => { if (!restTimer) bar.hidden = true; }, 4000); }
+  };
+  tick();
+  restTimer = setInterval(tick, 500);
+}
+
+function openGuided(s) {
+  const tk = todayKey(), lvl = sportLevel(weekIndex(tk));
+  if (!S.sport.live || S.sport.live.sid !== s.id || S.sport.live.date !== tk) { S.sport.live = { sid: s.id, date: tk, sets: {} }; save(); }
+  const live = S.sport.live;
+  const exs = s.items.filter((i) => !i.block);
+  const bubbles = (x) => {
+    const n = live.sets[x.id] || 0;
+    return Array.from({ length: x.sets }, (_, i) => `<button class="set ${i < n ? 'on' : ''}" data-set="${x.id}:${i}" aria-label="Série ${i + 1}">${i < n ? '✓' : i + 1}</button>`).join('');
+  };
+  const progress = () => { const tot = exs.reduce((a, x) => a + x.sets, 0), d = exs.reduce((a, x) => a + Math.min(live.sets[x.id] || 0, x.sets), 0); return { tot, d }; };
+  let n = 0;
+  openSheet(`<div class="sheet-head"><h2>${s.e} ${s.title}</h2><button class="icon-btn" data-gclose aria-label="Fermer">✕</button></div>
+    <div class="rest" id="rest" hidden></div>
+    <div class="bar" style="margin-bottom:6px"><i id="gprog" style="width:0"></i></div>
+    <p class="field-hint" id="gtxt" style="margin:0 4px 12px"></p>
+    <ol class="ex-list guided">${s.items.map((it) => {
+      if (it.block) return blockHtml(it, lvl);
+      n++;
+      const next = exs[exs.indexOf(it) + 1];
+      return `<li class="ex" id="gx-${it.id}">
+        <div class="ex-head"><span class="ex-num">${n}</span><div><strong>${esc(it.name)}</strong><span>${esc(lv(it.where, lvl))}</span></div></div>
+        <div class="ex-meta"><span>🔁 ${it.sets} × ${esc(lv(it.reps, lvl))}</span>${it.load ? `<span>🏋️ ${esc(S.sport.loads[it.id] || lv(it.load, lvl))}</span>` : ''}<span>⏱️ ${it.rest ? fmtRest(it.rest) : 'enchaîne'}</span></div>
+        <div class="sets" data-rest="${it.rest}" data-next="${esc(next ? 'Ensuite : ' + next.name : 'Ensuite : la fin de séance')}">${bubbles(it)}</div>
+        <details class="ex-more"><summary>Comment faire</summary>
+          <p><b>Réglage :</b> ${esc(it.setup)}</p><ol>${it.how.map((h) => `<li>${esc(h)}</li>`).join('')}</ol><p class="avoid">⚠️ ${esc(it.avoid)}</p>
+        </details>
+        ${it.load ? `<label class="ex-load"><span>Ma charge</span><input data-load="${it.id}" value="${esc(S.sport.loads[it.id] || '')}" placeholder="${esc(lv(it.load, lvl))}" autocomplete="off"></label>` : ''}
+      </li>`;
+    }).join('')}</ol>
+    <button class="btn btn-primary btn-block" id="gend" style="margin-top:12px">🏁 Terminer la séance</button>
+    <button class="btn btn-block" id="greset" style="margin-top:8px">Recommencer à zéro</button>`, (sh) => {
+    const upd = () => {
+      const { tot, d } = progress();
+      $('#gprog', sh).style.width = `${(d / tot) * 100}%`;
+      $('#gtxt', sh).textContent = `${d}/${tot} séries faites · touche une bulle après chaque série`;
+    };
+    upd();
+    bindLoads(sh);
+    const bindSets = () => $$('[data-set]', sh).forEach((b) => b.onclick = () => {
+      const [id, i] = b.dataset.set.split(':');
+      const x = exs.find((e) => e.id === id), cur = live.sets[id] || 0;
+      const nv = +i < cur ? +i : +i + 1;
+      live.sets[id] = nv; save();
+      const box = b.parentElement;
+      box.innerHTML = bubbles(x); bindSets(); upd();
+      if (nv > cur) {
+        const on = $$('.set.on', box).pop(); if (on) on.classList.add('pop');
+        const r = +box.dataset.rest;
+        if (r > 0) startRest(sh, r, nv < x.sets ? `Série ${nv + 1}/${x.sets} de ${x.name}` : box.dataset.next);
+        if (nv === x.sets) $(`#gx-${id}`, sh).classList.add('ex-done');
+      }
+    });
+    bindSets();
+    exs.forEach((x) => { if ((live.sets[x.id] || 0) >= x.sets) $(`#gx-${x.id}`, sh).classList.add('ex-done'); });
+    $('[data-gclose]', sh).onclick = () => { closeSheet(); if (ui.tab === 'sport') render(); };
+    $('#gend', sh).onclick = () => { stopRest(); openToneDone(s); };
+    $('#greset', sh).onclick = () => { if (!confirm('Effacer les séries cochées ?')) return; live.sets = {}; save(); stopRest(); openGuided(s); };
+  });
+}
+
+function openToneDone(s) {
+  let feel = 'ok';
+  stopRest();
+  openSheet(`${sheetHead(`${s.title} terminée 🎉`)}
+    <div class="grid2">
+      <label class="field"><span>Minutes</span><input id="tm" inputmode="numeric" value="${s.dur}"></label>
+      <label class="field"><span>Kcal estimées</span><input id="tk" inputmode="numeric" value="${s.kcal}"></label>
+    </div>
+    <p class="field-hint" style="margin-top:-6px">Estimation pour ${s.dur} min de renfo + cardio. Comme pour le cardio, seule la moitié compte dans ton budget.</p>
+    <div class="group" style="margin-top:12px"><div class="group-lbl">Comment tu l'as vécue ?</div>
+      <div class="chips fill">${Object.entries(FEELS).map(([k, l]) => `<button class="chip" data-feel="${k}" aria-pressed="${k === feel}">${l}</button>`).join('')}</div></div>
+    <p class="error hidden" id="terr"></p>
+    <button class="btn btn-primary btn-block" id="tok">Valider la séance</button>`, (sh) => {
+    $$('[data-feel]', sh).forEach((b) => b.onclick = () => { feel = b.dataset.feel; $$('[data-feel]', sh).forEach((x) => x.setAttribute('aria-pressed', x === b)); });
+    $('#tok', sh).onclick = () => {
+      const min = num($('#tm', sh).value), kcal = num($('#tk', sh).value || '0');
+      if (!Number.isFinite(min) || min <= 0 || !Number.isFinite(kcal) || kcal < 0) {
+        const e = $('#terr', sh); e.textContent = 'Vérifie les minutes et les kcal.'; e.classList.remove('hidden'); return;
+      }
+      ensureDay(todayKey()).cardio.push({ id: uid(), act: s.act, min: Math.round(min), kcal: Math.round(kcal), session: s.id, kind: 'renfo', feel });
+      S.sport.live = null;
+      save(); closeSheet();
+      checkCelebrations();
+      render();
+      toast(feel === 'hard' ? '🥵 Tu es allée au bout, bravo ! Étire-toi bien.' : feel === 'easy' ? '😌 Trop facile ? Augmente un peu tes charges la prochaine fois !' : `${s.e} Séance tonification validée, bravo !`);
+    };
+  });
 }
 
 function openSessionSheet(s) {

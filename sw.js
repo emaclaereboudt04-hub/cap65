@@ -1,5 +1,5 @@
 /* Cap 65 : service worker (hors ligne). Incrémente VERSION à chaque mise à jour. */
-const VERSION = 'cap65-v2';
+const VERSION = 'cap65-v3';
 const ASSETS = [
   './',
   'index.html',
