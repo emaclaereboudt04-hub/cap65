@@ -401,3 +401,54 @@ label.field > span { display: block; font-weight: 800; font-size: 14px; color: v
   .ring-num { font-size: 40px; }
   .kpi b { font-size: 20px; }
 }
+
+/* ---------- Eau ---------- */
+:root { --water: #2F8FD8; --water-soft: #DDEEFB; }
+@media (prefers-color-scheme: dark) { :root { --water: #5DB4F0; --water-soft: #16283A; } }
+.glasses { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 6px; margin: 4px 0 12px; }
+.glass { height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--card-2); transition: background .2s, transform .12s; }
+.glass:active { transform: scale(.92); }
+.glass svg { width: 24px; height: 24px; fill: transparent; stroke: var(--ink-3); stroke-width: 1.8; transition: fill .25s, stroke .25s; }
+.glass.full { background: var(--water-soft); }
+.glass.full svg { fill: var(--water); stroke: var(--water); }
+.glass.bonus { outline: 1.5px dashed var(--water); outline-offset: -3px; }
+.glass.pop svg { animation: pop .45s cubic-bezier(.3,1.6,.5,1); }
+.water-actions { display: grid; grid-template-columns: 56px 1fr; gap: 8px; }
+.btn-water { background: var(--water-soft); color: var(--water); }
+.week-dots i.water { background: var(--water-soft); color: var(--water); }
+.week-dots i.water svg { width: 18px; height: 18px; fill: var(--water); }
+
+/* ---------- Repas / recettes ---------- */
+.seg3 { grid-template-columns: 1fr 1fr 1fr; }
+.seg3 button { font-size: 14px; padding: 0 4px; }
+.chips.scroll-x { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
+.chips.scroll-x::-webkit-scrollbar { display: none; }
+.chips.scroll-x .chip { flex: none; }
+.item .pick-plus { border: 0; }
+.ing-row { padding-right: 4px; }
+.ing-row .grams { width: 70px; min-height: 44px; text-align: center; padding: 0 6px; flex: none; }
+textarea { width: 100%; border: 1.5px solid var(--line); background: var(--card); border-radius: 14px; padding: 12px 14px; font: inherit; font-size: 16px; color: inherit; resize: vertical; outline: none; }
+textarea:focus { border-color: var(--accent); }
+.dish-foot .icon-btn { margin-left: auto; }
+.dish-foot .icon-btn + .btn { margin-left: 0; }
+
+/* ---------- Sport ---------- */
+.level { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.level strong { display: block; font-size: 18px; font-weight: 900; }
+.level-dots { display: flex; gap: 5px; flex: 1; }
+.level-dots i { width: 22px; height: 8px; border-radius: 9px; background: var(--ring-track); }
+.level-dots i.on { background: var(--accent); }
+.stepper button:disabled { opacity: .3; }
+.session details summary { cursor: pointer; font-weight: 800; color: var(--accent-ink); font-size: 14px; list-style: none; min-height: 32px; display: flex; align-items: center; }
+.session details summary::-webkit-details-marker { display: none; }
+.session details summary::after { content: '▾'; margin-left: 6px; transition: transform .2s; }
+.session details[open] summary::after { transform: rotate(180deg); }
+.session.is-done { opacity: .85; }
+.session .dish-head .goal-check { animation: pop .5s cubic-bezier(.3,1.6,.5,1); }
+.blocks { list-style: none; padding: 0; margin: 8px 0 0; }
+.blocks li { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.blocks li:first-child { border-top: 0; }
+.blocks .b-min { flex: none; width: 44px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 900; display: grid; place-items: center; font-size: 14px; }
+.blocks li.renfo .b-min { background: var(--good-soft); color: var(--good); }
+.blocks strong { display: block; font-weight: 850; }
+.blocks span { color: var(--ink-2); font-size: 14px; font-weight: 600; }
