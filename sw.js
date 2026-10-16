@@ -1,7 +1,7 @@
 /* Cap 65 : service worker (hors ligne).
    Stratégie « réseau d'abord » : quand il y a du réseau, on prend toujours la dernière version
    publiée ; sinon on se sert de la copie enregistrée. Incrémente VERSION à chaque mise à jour. */
-const VERSION = 'cap65-v8';
+const VERSION = 'cap65-v9';
 const ASSETS = [
   './',
   'index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
   'data.js',
   'data-plus.js',
   'illus.js',
+  'keepawake.js',
   'features.js',
   'features2.js',
   'app.js',

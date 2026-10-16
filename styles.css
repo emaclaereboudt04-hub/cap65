@@ -654,3 +654,12 @@ body.kb-open .toast { bottom: 12px; }
 .sleep-opt.best { background: var(--accent-soft); }
 .sleep-opt.best b { color: var(--accent-ink); }
 .sleep-banner b { font-weight: 900; }
+
+/* ---------- Lecteur : fin anticipée, charge manuelle ---------- */
+.pl-stop { min-height: 40px; padding: 0 12px; border-radius: 12px; background: var(--card-2); font-weight: 900; font-size: 14px; color: var(--ink); white-space: nowrap; }
+.pl-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pl-row .pl-prev:last-child { margin-left: auto; color: var(--accent-ink); }
+.pl-kg-field { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 6px; font-weight: 900; }
+.pl-kg-field span { font-size: 20px; color: var(--ink-2); }
+.pl-kg-field input { width: 96px; min-height: 48px; text-align: center; font-size: 28px !important; font-weight: 900; border: 2px dashed var(--line); background: var(--card); border-radius: 12px; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.pl-kg-field input:focus { border-style: solid; border-color: var(--accent); }

@@ -6,7 +6,7 @@
    ========================================================= */
 
 const STORE_KEY = 'cap65-data-v1';
-const APP_VERSION = '8 · 16 oct.';
+const APP_VERSION = '9 · 16 oct.';
 const MOMENTS = ['Matin', 'Midi', 'En-cas', 'Soir'];
 const ACTIVITIES = [
   { n: 'Vélo', e: '🚴‍♀️' },
@@ -1425,7 +1425,8 @@ function recommend(x, lvl) {
   const last = h[h.length - 1], prev = h[h.length - 2];
   if (last.feel === 'light') return { kg: last.kg + x.step, why: `${loadLabel(x, last.kg)} était trop léger → on monte` };
   if (last.feel === 'heavy') return { kg: Math.max(x.step, last.kg - x.step), why: `${loadLabel(x, last.kg)} était trop lourd → on baisse un peu` };
-  if (prev && prev.feel === 'ok' && prev.kg === last.kg) return { kg: last.kg + x.step, why: `2 séances parfaites à ${loadLabel(x, last.kg)} → on progresse !` };
+  const full = (e) => e.sets == null || e.sets >= x.sets; // un exercice arrêté en cours ne compte pas pour progresser
+  if (prev && prev.feel === 'ok' && prev.kg === last.kg && full(prev) && full(last)) return { kg: last.kg + x.step, why: `2 séances parfaites à ${loadLabel(x, last.kg)} → on progresse !` };
   return { kg: last.kg, why: `${loadLabel(x, last.kg)} était parfait → on garde` };
 }
 
@@ -1445,7 +1446,7 @@ function buildSteps(s) {
 }
 const repsTxt = (r) => (/s$/.test(r) ? r : r.replace(/^(\d+)/, '$1 rép.'));
 const fmtClock = (ms) => { const t = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(t / 60)}:${pad(t % 60)}`; };
-let playerTick = null, wakeLock = null;
+let playerTick = null;
 
 function openPlayer(s) {
   const tk = todayKey();
@@ -1459,15 +1460,17 @@ function openPlayer(s) {
   if (!pl) { pl = document.createElement('div'); pl.id = 'player'; pl.className = 'player'; document.body.appendChild(pl); }
   pl.hidden = false;
   document.body.classList.add('no-scroll');
-  try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then((w) => { wakeLock = w; }).catch(() => {}); } catch (e) { /* pas de wake lock */ }
+  KeepAwake.enable(); // écran allumé pendant toute la séance
+  L.done = L.done || {};
 
   const close = () => {
     clearInterval(playerTick); playerTick = null;
     pl.hidden = true; pl.innerHTML = '';
     document.body.classList.remove('no-scroll');
-    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    KeepAwake.disable();
     save(); render();
   };
+  const sessionMinutes = () => Math.max(1, Math.min(180, Math.round((Date.now() - (L.start || Date.now())) / 60000)));
   const go = (i) => {
     L.step = Math.max(0, Math.min(steps.length - 1, i));
     L.set = 1; L.phase = steps[L.step].kind === 'block' ? 'block' : 'work';
@@ -1485,18 +1488,22 @@ function openPlayer(s) {
     const n = steps.length - 1;
     const head = `<div class="pl-top">
         <button class="icon-btn" data-pclose aria-label="Quitter">✕</button>
-        <div class="pl-title"><strong>${s.e} ${esc(s.title)}</strong><span>${st.kind === 'end' ? 'Terminé !' : `Étape ${L.step + 1}/${n}`}</span></div>
-        <span style="width:44px"></span>
+        <div class="pl-title"><strong>${s.e} ${esc(s.title)}</strong><span>${st.kind === 'end' ? 'Terminé !' : `Étape ${L.step + 1}/${n}`} · 🔆 écran allumé</span></div>
+        ${st.kind === 'end' ? '<span style="width:44px"></span>' : '<button class="pl-stop" data-stopall aria-label="Terminer la séance maintenant">🏁 Fin</button>'}
       </div>
       <div class="pl-steps">${steps.slice(0, n).map((_, i) => `<i class="${i < L.step ? 'done' : i === L.step ? 'now' : ''}"></i>`).join('')}</div>`;
     let body = '', foot = '';
     const prevBtn = L.step > 0 ? `<button class="pl-prev" data-prev>‹ Étape précédente</button>` : '<span></span>';
 
     if (st.kind === 'end') {
-      const mins = Math.max(1, Math.round((Date.now() - (L.start || Date.now())) / 60000));
-      body = `<div class="pl-illus pl-end">🎉</div>
-        <h1 class="pl-h">Séance terminée !</h1>
-        <p class="pl-sub">${mins} min · ${steps.filter((x) => x.kind === 'ex').length || steps.length - 1} ${s.items ? 'exercices' : 'étapes'} · tu peux être fière de toi 💪</p>`;
+      const mins = sessionMinutes();
+      const exs = steps.filter((x) => x.kind === 'ex');
+      const setsDone = exs.reduce((a, x) => a + Math.min(L.done[x.x.id] || 0, x.x.sets), 0), setsAll = exs.reduce((a, x) => a + x.x.sets, 0);
+      const exDone = exs.filter((x) => (L.done[x.x.id] || 0) > 0).length;
+      body = `<div class="pl-illus pl-end">${L.ended ? '💪' : '🎉'}</div>
+        <h1 class="pl-h">${L.ended ? 'Séance arrêtée, bien joué !' : 'Séance terminée !'}</h1>
+        <p class="pl-sub">${mins} min${exs.length ? ` · ${exDone}/${exs.length} exercices · ${setsDone}/${setsAll} séries` : ` · ${L.ended ? `${Math.max(0, (L.endedAt ?? n) )}/${n} étapes` : `${n} étapes`}`}</p>
+        <p class="pl-txt" style="font-size:16px">${L.ended ? 'Chaque séance compte, même raccourcie. Ce que tu as fait est enregistré tel quel 💛' : 'Tu peux être fière de toi 💪'}</p>`;
       foot = `<button class="btn btn-primary btn-block pl-main" data-finish>Valider ma séance</button>${prevBtn}`;
     } else if (st.kind === 'block') {
       const total = st.d * 60000;
@@ -1525,9 +1532,10 @@ function openPlayer(s) {
         const total = x.rest * 1000, left = L.restEnd - Date.now();
         body = `${top}<div class="pl-timer is-rest">${ring(left / total, 'is-rest')}<div class="pl-clock"><b id="pclock">${fmtClock(left)}</b><span>Repos</span></div></div>
           <p class="pl-next">Ensuite : série ${L.set}/${x.sets} · ${esc(repsTxt(reps))}${kg != null ? ` à ${loadLabel(x, kg)}` : ''}</p>`;
-        foot = `<div class="grid2"><button class="btn pl-main" data-plus>+15 s</button><button class="btn btn-primary pl-main" data-skip>C'est reparti →</button></div>${prevBtn}`;
+        foot = `<div class="grid2"><button class="btn pl-main" data-plus>+15 s</button><button class="btn btn-primary pl-main" data-skip>C'est reparti →</button></div>
+          <div class="pl-row">${prevBtn}<button class="pl-prev" data-skipex>Arrêter cet exercice ici (${L.done[x.id] || 0}/${x.sets}) ⏭</button></div>`;
       } else if (L.phase === 'feel') {
-        body = `${top}<div class="pl-feel"><p class="pl-q">Comment était la charge de <b>${loadLabel(x, kg)}</b> ?</p>
+        body = `${top}<div class="pl-feel"><p class="pl-q">${(L.done[x.id] || 0) < x.sets ? `${L.done[x.id] || 0}/${x.sets} séries faites. ` : ''}Comment était la charge de <b>${loadLabel(x, kg)}</b> ?</p>
           ${Object.entries(LOAD_FEELS).map(([k, l]) => `<button class="btn btn-block pl-feel-btn" data-lfeel="${k}">${l}</button>`).join('')}
           <p class="field-hint" style="text-align:center">L'app ajustera la charge de ta prochaine séance.</p></div>`;
         foot = prevBtn;
@@ -1537,12 +1545,17 @@ function openPlayer(s) {
           <div class="pl-bubbles">${Array.from({ length: x.sets }, (_, i) => `<i class="${i + 1 < L.set ? 'done' : i + 1 === L.set ? 'now' : ''}"></i>`).join('')}</div>
           ${x.kg ? `<div class="pl-load">
             <div><span class="small muted">Charge conseillée</span><p class="pl-why">${esc(rec.why)}</p></div>
-            <div class="pl-kg"><button data-kg="-1" aria-label="Moins lourd">−</button><b>${loadLabel(x, kg)}</b><button data-kg="1" aria-label="Plus lourd">+</button></div>
+            <div class="pl-kg"><button data-kg="-1" aria-label="Moins lourd">−</button>
+              <label class="pl-kg-field">${x.db ? '<span>2 ×</span>' : ''}<input id="pkg" inputmode="decimal" enterkeyhint="done" value="${nf1(kg)}" aria-label="Charge en kg${x.db ? ' par haltère' : ''}"><span>kg</span></label>
+              <button data-kg="1" aria-label="Plus lourd">+</button></div>
+            <p class="field-hint" style="margin:6px 0 0;text-align:center">Touche le chiffre pour taper ta charge exacte${x.db ? ' (par haltère)' : ''}.</p>
             ${last ? `<p class="field-hint" style="margin:6px 0 0">Dernière fois : ${loadLabel(x, last.kg)} · ${LOAD_FEELS[last.feel]}</p>` : ''}
           </div>` : ''}
           ${howHtml}`;
         const lastSet = L.set >= x.sets;
-        foot = `<button class="btn btn-primary btn-block pl-main" data-setdone>${lastSet ? '✓ Dernière série faite' : `✓ Série faite → Repos ${fmtRest(x.rest)}`}</button>${prevBtn}`;
+        const doneSets = L.done[x.id] || 0;
+        foot = `<button class="btn btn-primary btn-block pl-main" data-setdone>${lastSet ? '✓ Dernière série faite' : `✓ Série faite → Repos ${fmtRest(x.rest)}`}</button>
+          <div class="pl-row">${prevBtn}<button class="pl-prev" data-skipex>${doneSets ? `Arrêter cet exercice (${doneSets}/${x.sets}) ⏭` : 'Passer cet exercice ⏭'}</button></div>`;
       }
     }
     pl.innerHTML = `<div class="pl-wrap">${head}<div class="pl-body">${body}</div><div class="pl-foot">${foot}</div></div>`;
@@ -1575,6 +1588,28 @@ function openPlayer(s) {
   function bind() {
     const q = (sel) => $(sel, pl);
     q('[data-pclose]').onclick = close;
+    const stopAll = q('[data-stopall]');
+    if (stopAll) stopAll.onclick = () => {
+      if (!confirm('Terminer la séance maintenant ? Seul ce que tu as fait sera enregistré.')) return;
+      L.ended = true; L.endedAt = L.step; go(steps.length - 1);
+    };
+    const skipEx = q('[data-skipex]');
+    if (skipEx) skipEx.onclick = () => {
+      const x = steps[L.step].x;
+      L.restEnd = null;
+      if ((L.done[x.id] || 0) > 0 && x.kg) { L.phase = 'feel'; save(); draw(); } else go(L.step + 1);
+    };
+    const kgIn = q('#pkg');
+    if (kgIn) {
+      kgIn.onfocus = () => kgIn.select();
+      kgIn.onkeydown = (e) => { if (e.key === 'Enter') kgIn.blur(); };
+      kgIn.onchange = () => {
+        const v = num(kgIn.value);
+        const x = steps[L.step].x;
+        if (Number.isFinite(v) && v >= 0 && v <= 300) { L.kgs[x.id] = Math.round(v * 10) / 10; save(); }
+        draw();
+      };
+    }
     const prev = q('[data-prev]');
     if (prev) prev.onclick = () => go(L.step - 1);
     const next = $$('[data-next]', pl);
@@ -1595,6 +1630,7 @@ function openPlayer(s) {
     const sd = q('[data-setdone]');
     if (sd) sd.onclick = () => {
       const x = steps[L.step].x;
+      L.done[x.id] = Math.max(L.done[x.id] || 0, L.set);
       if (L.set < x.sets) {
         L.set++; L.phase = 'rest'; L.restEnd = Date.now() + x.rest * 1000;
         save(); draw();
@@ -1610,26 +1646,32 @@ function openPlayer(s) {
       const kg = L.kgs[x.id] != null ? L.kgs[x.id] : recommend(x, lvl).kg;
       S.sport.hist = S.sport.hist || {};
       const h = S.sport.hist[x.id] || (S.sport.hist[x.id] = []);
-      h.push({ date: todayKey(), kg, feel: b.dataset.lfeel });
+      h.push({ date: todayKey(), kg, feel: b.dataset.lfeel, sets: L.done[x.id] || 0 });
       if (h.length > 30) h.shift();
       const nxt = recommend(x, lvl);
       toast(b.dataset.lfeel === 'ok' ? `👌 Noté ! Prochaine fois : ${loadLabel(x, nxt.kg)}` : `Noté ! Prochaine fois : ${loadLabel(x, nxt.kg)}`);
       go(L.step + 1);
     });
     const fin = q('[data-finish]');
-    if (fin) fin.onclick = () => { close(); s.items ? openToneDone(s) : openSessionSheet(s); };
+    if (fin) fin.onclick = () => {
+      const min = sessionMinutes();
+      close();
+      if (s.items) openToneDone(s, { min, kcal: Math.round((s.kcal * Math.min(min, s.dur)) / s.dur) });
+      else openSessionSheet(s, { min });
+    };
   }
   draw();
 }
 
-function openToneDone(s) {
+function openToneDone(s, pre = {}) {
   let feel = 'ok';
+  const min0 = pre.min || s.dur, kcal0 = pre.kcal != null ? pre.kcal : s.kcal;
   openSheet(`${sheetHead(`${s.title} terminée 🎉`)}
     <div class="grid2">
-      <label class="field"><span>Minutes</span><input id="tm" inputmode="numeric" value="${s.dur}"></label>
-      <label class="field"><span>Kcal estimées</span><input id="tk" inputmode="numeric" value="${s.kcal}"></label>
+      <label class="field"><span>Minutes</span><input id="tm" inputmode="numeric" value="${min0}"></label>
+      <label class="field"><span>Kcal estimées</span><input id="tk" inputmode="numeric" value="${kcal0}"></label>
     </div>
-    <p class="field-hint" style="margin-top:-6px">Estimation pour ${s.dur} min de renfo + cardio. Comme pour le cardio, seule la moitié compte dans ton budget.</p>
+    <p class="field-hint" style="margin-top:-6px">Estimation pour ${min0} min de renfo + cardio. Comme pour le cardio, seule la moitié compte dans ton budget.</p>
     <div class="group" style="margin-top:12px"><div class="group-lbl">Comment tu l'as vécue ?</div>
       <div class="chips fill">${Object.entries(FEELS).map(([k, l]) => `<button class="chip" data-feel="${k}" aria-pressed="${k === feel}">${l}</button>`).join('')}</div></div>
     <p class="error hidden" id="terr"></p>
@@ -1650,9 +1692,9 @@ function openToneDone(s) {
   });
 }
 
-function openSessionSheet(s) {
+function openSessionSheet(s, pre = {}) {
   let act = s.act, feel = 'ok';
-  const total = s.blocks.reduce((a, b) => a + b.d, 0);
+  const total = pre.min || s.blocks.reduce((a, b) => a + b.d, 0);
   openSheet(`${sheetHead(`Séance ${s.id} terminée 🎉`)}
     <div class="group"><div class="group-lbl">Machine principale</div>
       <div class="act-grid">${ACTIVITIES.map((a) => `<button class="chip" data-act="${esc(a.n)}" aria-pressed="${a.n === act}"><span>${a.e}</span>${a.n}</button>`).join('')}</div></div>
