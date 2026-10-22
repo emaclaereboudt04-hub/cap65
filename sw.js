@@ -1,7 +1,7 @@
 /* Cap 65 : service worker (hors ligne).
    Stratégie « réseau d'abord » : quand il y a du réseau, on prend toujours la dernière version
    publiée ; sinon on se sert de la copie enregistrée. Incrémente VERSION à chaque mise à jour. */
-const VERSION = 'cap65-v9';
+const VERSION = 'cap65-v10';
 const ASSETS = [
   './',
   'index.html',
@@ -33,7 +33,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('cap65-') && k !== VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -41,6 +41,8 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  // le carnet de recettes (/recettes/) a son propre service worker
+  if (new URL(req.url).pathname.includes('/recettes/')) return;
   const isPage = req.mode === 'navigate';
   e.respondWith(
     fetch(req, { cache: 'no-cache' })
