@@ -1,59 +1,59 @@
 'use strict';
 /* =========================================================
-   Mon carnet de recettes : dessin de la fiche recette (canvas)
-   La même image sert à l'affichage et à l'export PNG.
-   Largeur fixe 1080 px ; la hauteur dépend du contenu.
+   Carnet de recettes : la fiche à partager (canvas, 1080 px de large)
+   Mise en page éditoriale : titre serif, photo, infos, deux colonnes
+   (ingrédients / préparation), astuce, signature.
    ========================================================= */
 
 const CARD = (() => {
   const W = 1080;
   const THEMES = {
-    creme:  { name: 'Crème',  bg: '#F6EADB', dot: '#EBD9C3', paper: '#FFFCF6', accent: '#E58C9A', soft: '#FBE3E6', ink: '#5B4438', muted: '#9A8172', note: '#FCEFC0' },
-    rose:   { name: 'Rose',   bg: '#F8DDE2', dot: '#F1C9D0', paper: '#FFFAFB', accent: '#E07A8E', soft: '#FCE6EA', ink: '#5B4040', muted: '#A07E84', note: '#FFF0C4' },
-    sauge:  { name: 'Sauge',  bg: '#DFE8D5', dot: '#CEDCC2', paper: '#FCFDF8', accent: '#7FA36B', soft: '#E8F0DF', ink: '#46503C', muted: '#879178', note: '#FBEFC4' },
-    ciel:   { name: 'Ciel',   bg: '#DCE7F2', dot: '#C9D9EA', paper: '#FBFDFF', accent: '#6F9BC8', soft: '#E3EDF7', ink: '#3F4B5B', muted: '#7F8D9E', note: '#FDF0C8' },
-    beurre: { name: 'Beurre', bg: '#F8EDC6', dot: '#EFE0AB', paper: '#FFFDF4', accent: '#E0A43E', soft: '#FBF0CC', ink: '#5A4A33', muted: '#9C8A69', note: '#FBDDE2' },
-    lilas:  { name: 'Lilas',  bg: '#E8E0F3', dot: '#DACEEC', paper: '#FDFBFF', accent: '#9C82C9', soft: '#EEE7F8', ink: '#4D4360', muted: '#8C80A0', note: '#FCEFC0' },
+    ivoire: { name: 'Ivoire', bg: '#F7F2EA', ink: '#2B2420', soft: '#6F625A', line: '#DDD1C0', accent: '#A4553A', tint: '#EFE6D8' },
+    lin:    { name: 'Lin',    bg: '#EDE4D5', ink: '#2E2620', soft: '#6E6052', line: '#D2C4AE', accent: '#8A5A3A', tint: '#E3D7C3' },
+    sauge:  { name: 'Sauge',  bg: '#E8EBE1', ink: '#27302A', soft: '#5F6A5E', line: '#CBD2C1', accent: '#5F7352', tint: '#DCE2D3' },
+    poudre: { name: 'Poudré', bg: '#F5E9E4', ink: '#30252A', soft: '#76626A', line: '#E2CFC7', accent: '#A85663', tint: '#EEDCD5' },
+    ardoise:{ name: 'Ardoise',bg: '#E7EAEC', ink: '#262C31', soft: '#5E6870', line: '#CDD3D8', accent: '#4F6475', tint: '#DCE1E5' },
   };
+  const SERIF = 'Fraunces, Georgia, serif';
+  const SERIF_I = '"Fraunces Italic", Fraunces, Georgia, serif';
+  const SANS = 'Inter, system-ui, sans-serif';
 
-  const FONT_T = 'Fredoka, "Nunito", system-ui, sans-serif';
-  const FONT_B = 'Nunito, system-ui, sans-serif';
-  const FONT_H = 'Caveat, "Fredoka", cursive';
-
-  /* ---------- polices ---------- */
+  /* ---------- ressources ---------- */
   let fontsReady = null;
   function loadFonts() {
     if (!fontsReady) {
       fontsReady = Promise.all([
-        document.fonts.load('600 40px Fredoka'), document.fonts.load('700 40px Caveat'),
-        document.fonts.load('600 30px Nunito'), document.fonts.load('800 30px Nunito'),
+        document.fonts.load(`400 40px Fraunces`), document.fonts.load(`500 40px Fraunces`),
+        document.fonts.load(`italic 400 40px "Fraunces Italic"`),
+        document.fonts.load(`400 30px Inter`), document.fonts.load(`600 30px Inter`),
       ]).catch(() => {});
     }
     return fontsReady;
   }
-
-  // police intégrée (base64) pour les autocollants qui contiennent du texte, à l'export
-  let fontCss = null;
-  async function embeddedFonts() {
-    if (fontCss !== null) return fontCss;
-    const toData = (url) => fetch(url).then((r) => r.blob()).then((b) => new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); }));
-    try {
-      const [fr, cv] = await Promise.all([toData('fonts/fredoka.woff2'), toData('fonts/caveat.woff2')]);
-      fontCss = `@font-face{font-family:Fredoka;src:url(${fr}) format("woff2");font-weight:300 700}@font-face{font-family:Caveat;src:url(${cv}) format("woff2");font-weight:400 700}`;
-    } catch (e) { fontCss = ''; }
-    return fontCss;
-  }
-
-  /* ---------- images ---------- */
   const imgCache = new Map();
   function loadImg(src) {
+    if (!src) return Promise.resolve(null);
     if (imgCache.has(src)) return imgCache.get(src);
     const p = new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
-    if (imgCache.size > 60) imgCache.clear();
+    if (imgCache.size > 120) imgCache.clear();
     imgCache.set(src, p);
     return p;
   }
-  const stickerImg = (id, px, fonts = '') => loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(STICKERS.svg(id, { size: Math.round(px), fonts })));
+
+  // grain de papier (généré une fois)
+  let grain = null;
+  function paperGrain() {
+    if (grain) return grain;
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const x = c.getContext('2d'); const d = x.createImageData(256, 256);
+    for (let i = 0; i < d.data.length; i += 4) {
+      const v = Math.random();
+      d.data[i] = d.data[i + 1] = d.data[i + 2] = v > 0.5 ? 255 : 60;
+      d.data[i + 3] = Math.floor(Math.abs(v - 0.5) * 22);
+    }
+    x.putImageData(d, 0, 0);
+    grain = c; return c;
+  }
 
   /* ---------- texte ---------- */
   function wrap(ctx, text, maxW) {
@@ -65,7 +65,6 @@ const CARD = (() => {
       words.forEach((w) => {
         const test = line ? line + ' ' + w : w;
         if (ctx.measureText(test).width <= maxW || !line) {
-          // mot plus long que la ligne : on le coupe
           if (!line && ctx.measureText(w).width > maxW) {
             let part = '';
             for (const ch of w) { if (ctx.measureText(part + ch).width > maxW) { out.push(part); part = ch; } else part += ch; }
@@ -77,79 +76,66 @@ const CARD = (() => {
     });
     return out;
   }
-
+  function balanced(ctx, text, maxW) {
+    let lines = wrap(ctx, text, maxW);
+    if (lines.length < 2) return lines;
+    let w = maxW; const n = lines.length;
+    while (w > 240) { const t = wrap(ctx, text, w - 16); if (t.length > n) break; lines = t; w -= 16; }
+    return lines;
+  }
+  const spaced = (ctx, px) => { if ('letterSpacing' in ctx) ctx.letterSpacing = px + 'px'; };
   function rr(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
-  function squiggle(ctx, cx, y, w, color) {
-    ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.beginPath();
-    const x0 = cx - w / 2; const n = Math.max(3, Math.round(w / 26));
-    ctx.moveTo(x0, y);
-    for (let i = 0; i < n; i++) { const a = x0 + (w / n) * i; ctx.quadraticCurveTo(a + w / n / 4, y - 7, a + w / n / 2, y); ctx.quadraticCurveTo(a + (3 * w) / n / 4, y + 7, a + w / n, y); }
-    ctx.stroke(); ctx.restore();
-  }
-
-  /* ---------- format ---------- */
+  /* ---------- formats ---------- */
   const fmtMin = (m) => {
     m = Math.round(+m || 0); if (!m) return '';
     if (m < 60) return m + ' min';
     const h = Math.floor(m / 60); const r = m % 60;
     return r ? `${h} h ${String(r).padStart(2, '0')}` : `${h} h`;
   };
-  const fmtQty = (q) => {
-    if (q === '' || q === null || q === undefined) return '';
-    const n = typeof q === 'number' ? q : parseFloat(String(q).replace(',', '.'));
-    if (!isFinite(n)) return String(q);
-    const fr = { 0.25: '¼', 0.5: '½', 0.75: '¾', 0.33: '⅓', 0.67: '⅔' };
+  const fmtQty = (n) => {
+    const fr = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
     const whole = Math.floor(n); const dec = Math.round((n - whole) * 100) / 100;
-    if (fr[dec] && n < 10) return (whole ? whole : '') + fr[dec];
+    if (fr[dec] && n < 10) return (whole ? whole + ' ' : '') + fr[dec];
     return (Math.round(n * 100) / 100).toString().replace('.', ',');
   };
-  const ingText = (it, mult = 1) => {
-    const n = parseFloat(String(it.q ?? '').replace(',', '.'));
-    const q = isFinite(n) ? fmtQty(mult === 1 ? n : niceRound(n * mult, it.u || '')) : (it.q || '');
-    const u = it.u || '';
-    let qty = [q, u].filter(Boolean).join(u && /^[a-zA-Z]{1,2}$/.test(u) ? ' ' : ' ');
-    return { qty, name: it.n || '' };
-  };
-  // arrondi agréable quand on change le nombre de parts
   const niceRound = (v, u) => {
     if (['g', 'ml', 'mg'].includes(u)) return v >= 100 ? Math.round(v / 5) * 5 : v >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
     if (['kg', 'L', 'cl', 'dl'].includes(u)) return v >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
     if (['c. à s.', 'c. à c.', 'pincée', 'tasse', 'verre'].includes(u)) return Math.max(0.25, Math.round(v * 4) / 4);
     return Math.max(0.5, Math.round(v * 2) / 2);
   };
-  const DIFF = ['', 'Facile', 'Moyen', 'Difficile'];
+  const ingText = (it, mult = 1) => {
+    const n = parseFloat(String(it.q ?? '').replace(',', '.'));
+    const q = isFinite(n) ? fmtQty(mult === 1 ? n : niceRound(n * mult, it.u || '')) : (it.q || '');
+    return { qty: [q, it.u || ''].filter(Boolean).join(' '), name: it.n || '' };
+  };
+  const DIFF = ['', 'Facile', 'Moyen', 'Exigeant'];
 
-  /* ---------- mise en page ---------- */
+  /* ---------- rendu ---------- */
   async function render(recipe, opts = {}) {
     await loadFonts();
     const scale = opts.scale || 1;
-    const T = THEMES[recipe.theme] || THEMES.creme;
-    const photo = recipe.photo ? await loadImg(recipe.photo) : null;
-    const chipIcons = {};
-    await Promise.all(['fouet', 'minuteur', 'gant', 'the', 'coeur', 'toque'].map(async (id) => { chipIcons[id] = await stickerImg(id, 64 * scale); }));
-
-    const measure = document.createElement('canvas').getContext('2d');
+    const T = THEMES[recipe.theme] || THEMES.ivoire;
+    const photo = await loadImg(recipe.photo);
     const anchors = {};
-    const H = Math.ceil(layout(measure, recipe, T, photo, chipIcons, anchors, false));
+    const measure = document.createElement('canvas').getContext('2d');
+    const H = Math.ceil(layout(measure, recipe, T, photo, anchors, false, 0, opts));
     const cv = document.createElement('canvas');
     cv.width = Math.round(W * scale); cv.height = Math.round(H * scale);
     const ctx = cv.getContext('2d');
-    ctx.scale(scale, scale);
-    ctx.imageSmoothingQuality = 'high';
-    layout(ctx, recipe, T, photo, chipIcons, anchors, true, H);
-
-    if (opts.withStickers && recipe.stickers && recipe.stickers.length) {
-      const fonts = await embeddedFonts();
+    ctx.scale(scale, scale); ctx.imageSmoothingQuality = 'high';
+    layout(ctx, recipe, T, photo, anchors, true, H, opts);
+    if (opts.withIllus && recipe.stickers && recipe.stickers.length) {
       for (const st of recipe.stickers) {
-        const px = st.s * W;
-        const img = await stickerImg(st.id, px * scale, fonts);
+        const img = await loadImg(ILLUS.src(st.id));
         if (!img) continue;
+        const px = st.s * W;
         ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
         ctx.translate(st.x * W, st.y * W);
         ctx.rotate((st.r || 0) * Math.PI / 180);
         if (st.f) ctx.scale(-1, 1);
@@ -160,250 +146,170 @@ const CARD = (() => {
     return { canvas: cv, width: W, height: H, anchors };
   }
 
-  function layout(ctx, r, T, photo, chipIcons, A, draw, totalH) {
-    const M = 34;             // marge extérieure
-    const P = 74;             // marge intérieure
-    const X = M + P;          // début du contenu
-    const CW = W - 2 * X;     // largeur du contenu
-    const CX = W / 2;
-    let y = M + 76;
+  function layout(ctx, r, T, photo, A, draw, totalH, opts) {
+    const M = 84; const CW = W - 2 * M;
+    let y = 96;
+    const txt = (s, x, yy, font, color, align = 'left') => { if (!draw) return; ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.fillText(s, x, yy); };
+    const rule = (yy, x0 = M, x1 = W - M) => { if (!draw) return; ctx.fillStyle = T.line; ctx.fillRect(x0, yy, x1 - x0, 2); };
 
     if (draw) {
-      // fond à pois
       ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, totalH);
-      ctx.fillStyle = T.dot;
-      for (let yy = 18; yy < totalH; yy += 36) for (let xx = (yy / 36) % 2 ? 18 : 36; xx < W; xx += 36) { ctx.beginPath(); ctx.arc(xx, yy, 3.2, 0, 7); ctx.fill(); }
-      // feuille
-      ctx.save(); ctx.shadowColor = 'rgba(110,84,70,.16)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 8;
-      rr(ctx, M, M, W - 2 * M, totalH - 2 * M, 46); ctx.fillStyle = T.paper; ctx.fill(); ctx.restore();
-      // petite couture pointillée
-      ctx.save(); ctx.setLineDash([2, 14]); ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = T.dot;
-      rr(ctx, M + 18, M + 18, W - 2 * M - 36, totalH - 2 * M - 36, 32); ctx.stroke(); ctx.restore();
+      const pat = ctx.createPattern(paperGrain(), 'repeat'); ctx.fillStyle = pat; ctx.fillRect(0, 0, W, totalH);
+      // léger vignettage
+      const g = ctx.createRadialGradient(W / 2, totalH / 2, W * 0.4, W / 2, totalH / 2, Math.max(W, totalH) * 0.75);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(80,60,40,0.06)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, totalH);
     }
 
-    // catégorie
-    if (r.category) {
-      ctx.font = `600 25px ${FONT_T}`;
-      const txt = r.category.toUpperCase();
-      const tw = ctx.measureText(txt).width + txt.length * 2.5 + 48;
-      if (draw) {
-        rr(ctx, CX - tw / 2, y - 6, tw, 46, 23); ctx.fillStyle = T.soft; ctx.fill();
-        ctx.fillStyle = T.accent; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        if ('letterSpacing' in ctx) ctx.letterSpacing = '2.5px';
-        ctx.fillText(txt, CX, y + 18);
-        if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
-      }
-      y += 70;
+    // en-tête : catégorie + numéro
+    ctx.font = `600 22px ${SANS}`; spaced(ctx, 4);
+    if (draw) {
+      txt((r.category || 'Recette').toUpperCase(), M, y, `600 22px ${SANS}`, T.accent);
+      if (opts.number) txt(`N° ${String(opts.number).padStart(3, '0')}`, W - M, y, `600 22px ${SANS}`, T.soft, 'right');
     }
+    spaced(ctx, 0);
+    y += 34;
+    rule(y); y += 52;
 
     // titre
     A.titleTop = y;
-    const title = r.title || 'Ma recette';
-    let fs = 78;
-    ctx.font = `600 ${fs}px ${FONT_T}`;
-    let lines = wrap(ctx, title, CW - 40);
-    if (lines.length > 2) { fs = 64; ctx.font = `600 ${fs}px ${FONT_T}`; lines = wrap(ctx, title, CW - 20); }
-    // lignes équilibrées (évite un mot tout seul sur la dernière ligne)
-    if (lines.length > 1) {
-      let w = CW - 40; const n = lines.length;
-      while (w > 200) { const t = wrap(ctx, title, w - 20); if (t.length > n) break; lines = t; w -= 20; }
-    }
-    lines.forEach((l) => {
-      if (draw) { ctx.fillStyle = T.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(l, CX, y + fs * 0.82); }
-      y += fs * 1.08;
-    });
-    A.titleBottom = y;
-
+    let fs = 92;
+    ctx.font = `400 ${fs}px ${SERIF}`;
+    let lines = balanced(ctx, r.title || 'Ma recette', CW - 150);
+    if (lines.length > 2) { fs = 76; ctx.font = `400 ${fs}px ${SERIF}`; lines = balanced(ctx, r.title, CW - 100); }
+    lines.forEach((l) => { y += fs * 0.98; txt(l, M - 4, y, `400 ${fs}px ${SERIF}`, T.ink); });
+    y += 18;
     if (r.subtitle) {
-      ctx.font = `700 44px ${FONT_H}`;
-      wrap(ctx, r.subtitle, CW - 60).forEach((l) => {
-        if (draw) { ctx.fillStyle = T.accent; ctx.textAlign = 'center'; ctx.fillText(l, CX, y + 38); }
-        y += 48;
-      });
+      ctx.font = `italic 400 40px ${SERIF_I}`;
+      wrap(ctx, r.subtitle, CW - 120).forEach((l) => { y += 48; txt(l, M, y, `italic 400 40px ${SERIF_I}`, T.soft); });
+      y += 10;
     }
-    y += 10;
-    if (draw) squiggle(ctx, CX, y + 8, 150, T.accent);
-    y += 46;
+    A.titleBottom = y;
+    y += 40;
 
-    // photo façon polaroid
+    // photo
     if (photo) {
-      const pw = 800; const ph = Math.round(pw * 0.75);
-      const fw = pw + 44; const fh = ph + 44 + 54;
-      const fx = CX - fw / 2;
-      A.photoTop = y; A.photoBottom = y + fh; A.photoLeft = fx; A.photoRight = fx + fw;
+      const pw = CW; const ph = Math.round(pw * 0.7);
+      A.photoTop = y; A.photoBottom = y + ph;
       if (draw) {
-        ctx.save();
-        ctx.translate(CX, y + fh / 2); ctx.rotate(-1.6 * Math.PI / 180); ctx.translate(-CX, -(y + fh / 2));
-        ctx.shadowColor = 'rgba(110,84,70,.22)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10;
-        rr(ctx, fx, y, fw, fh, 10); ctx.fillStyle = '#fff'; ctx.fill();
-        ctx.shadowColor = 'transparent';
-        // recadrage « cover »
         const ir = photo.width / photo.height; const tr = pw / ph;
         let sw = photo.width, sh = photo.height, sx = 0, sy = 0;
         if (ir > tr) { sw = photo.height * tr; sx = (photo.width - sw) / 2; } else { sh = photo.width / tr; sy = (photo.height - sh) / 2; }
-        ctx.save(); rr(ctx, fx + 22, y + 22, pw, ph, 6); ctx.clip();
-        ctx.drawImage(photo, sx, sy, sw, sh, fx + 22, y + 22, pw, ph); ctx.restore();
-        ctx.restore();
+        ctx.save(); rr(ctx, M, y, pw, ph, 10); ctx.clip();
+        ctx.drawImage(photo, sx, sy, sw, sh, M, y, pw, ph); ctx.restore();
       }
-      y += fh + 50;
+      y += ph + 44;
     }
 
-    // infos (temps, four, portions, difficulté)
-    const chips = [];
-    if (+r.prep) chips.push(['fouet', 'Préparation', fmtMin(r.prep)]);
-    if (+r.cook) chips.push(['minuteur', 'Cuisson', fmtMin(r.cook)]);
-    if (+r.temp) chips.push(['gant', 'Four', `${r.temp} °C`]);
-    if (+r.rest) chips.push(['the', 'Repos', fmtMin(r.rest)]);
-    if (+r.servings) chips.push(['coeur', 'Pour', `${r.servings} ${r.servingsUnit || (+r.servings > 1 ? 'pers.' : 'pers.')}`]);
-    if (+r.difficulty) chips.push(['toque', 'Niveau', DIFF[r.difficulty]]);
-    if (chips.length) {
-      const sized = chips.map(([ic, lab, val]) => {
-        ctx.font = `800 21px ${FONT_B}`; const lw = ctx.measureText(lab.toUpperCase()).width;
-        ctx.font = `600 33px ${FONT_T}`; const vw = ctx.measureText(val).width;
-        return { ic, lab, val, w: Math.max(lw, vw) + 64 + 30 + 20 };
+    // infos
+    const info = [];
+    if (+r.prep) info.push(['Préparation', fmtMin(r.prep)]);
+    if (+r.cook) info.push(['Cuisson', fmtMin(r.cook)]);
+    if (+r.temp) info.push(['Four', `${r.temp} °C`]);
+    if (+r.rest) info.push(['Repos', fmtMin(r.rest)]);
+    if (+r.servings) info.push(['Pour', `${r.servings} ${r.servingsUnit || 'pers.'}`]);
+    if (+r.difficulty) info.push(['Niveau', DIFF[r.difficulty]]);
+    if (info.length) {
+      const items = info.slice(0, 5);
+      const cw = CW / items.length;
+      rule(y); y += 36;
+      items.forEach(([lab, val], i) => {
+        const cx = M + cw * i + cw / 2;
+        ctx.font = `600 19px ${SANS}`; spaced(ctx, 3);
+        txt(lab.toUpperCase(), cx, y + 18, `600 19px ${SANS}`, T.soft, 'center');
+        spaced(ctx, 0);
+        txt(val, cx, y + 70, `400 40px ${SERIF}`, T.ink, 'center');
+        if (i && draw) { ctx.fillStyle = T.line; ctx.fillRect(M + cw * i, y - 6, 2, 92); }
       });
-      const rows = []; let row = []; let rw = 0;
-      sized.forEach((c) => { if (row.length && rw + c.w + 16 > CW + 40) { rows.push(row); row = []; rw = 0; } row.push(c); rw += c.w + (row.length > 1 ? 16 : 0); });
-      if (row.length) rows.push(row);
-      rows.forEach((rowc) => {
-        const tot = rowc.reduce((s, c) => s + c.w, 0) + 16 * (rowc.length - 1);
-        let x = CX - tot / 2;
-        rowc.forEach((c) => {
-          if (draw) {
-            rr(ctx, x, y, c.w, 88, 26); ctx.fillStyle = T.soft; ctx.fill();
-            const ic = chipIcons[c.ic]; if (ic) ctx.drawImage(ic, x + 12, y + 12, 64, 64);
-            ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-            ctx.fillStyle = T.muted; ctx.font = `800 21px ${FONT_B}`; ctx.fillText(c.lab.toUpperCase(), x + 84, y + 36);
-            ctx.fillStyle = T.ink; ctx.font = `600 33px ${FONT_T}`; ctx.fillText(c.val, x + 84, y + 72);
-          }
-          x += c.w + 16;
-        });
-        y += 88 + 16;
-      });
-      y += 34;
+      y += 104; rule(y); y += 64;
     }
 
-    // titre de section
-    const section = (label, key) => {
-      A[key] = y;
-      ctx.font = `600 50px ${FONT_T}`;
-      const tw = ctx.measureText(label).width;
-      if (draw) {
-        ctx.save(); ctx.globalAlpha = 0.55; rr(ctx, CX - tw / 2 - 14, y + 30, tw + 28, 22, 11); ctx.fillStyle = T.soft; ctx.fill(); ctx.restore();
-        ctx.fillStyle = T.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(label, CX, y + 46);
-      }
-      y += 84;
-    };
-
-    // ingrédients
+    // deux colonnes
     const ings = (r.ingredients || []).filter((it) => it.sec || it.n || it.q);
+    const steps = (r.steps || []).map((s) => (s || '').trim()).filter(Boolean);
+    const twoCols = ings.length && steps.length;
+    const LW = twoCols ? 330 : CW; const GAP = 64; const RX = M + LW + GAP; const RW = W - M - RX;
+    const startY = y;
+    let ly = y; let ry = y;
+
     if (ings.length) {
-      section('Ingrédients', 'ingTop');
-      const twoCols = ings.length > 6;
-      const gap = 48;
-      const colW = twoCols ? (CW - gap) / 2 : CW - 80;
-      const items = ings.map((it) => {
+      A.ingTop = ly;
+      txt('Ingrédients', M, ly + 40, `italic 400 46px ${SERIF_I}`, T.ink);
+      ly += 74;
+      if (+r.servings) { txt(`pour ${r.servings} ${r.servingsUnit || 'pers.'}`, M, ly + 2, `italic 400 26px ${SERIF_I}`, T.soft); ly += 30; }
+      ings.forEach((it) => {
         if (it.sec) {
-          ctx.font = `700 40px ${FONT_H}`;
-          const ls = wrap(ctx, it.sec, colW);
-          return { sec: true, lines: ls, h: ls.length * 42 + 14 };
+          ly += 18;
+          ctx.font = `600 20px ${SANS}`; spaced(ctx, 3);
+          wrap(ctx, it.sec.toUpperCase(), LW).forEach((l) => { ly += 30; txt(l, M, ly, `600 20px ${SANS}`, T.accent); });
+          spaced(ctx, 0); ly += 14; return;
         }
         const { qty, name } = ingText(it);
-        ctx.font = `600 31px ${FONT_B}`;
-        const full = qty ? `${qty}  ${name}` : name;
-        const ls = wrap(ctx, full, colW - 34);
-        return { qty, name, lines: ls, h: ls.length * 41 + 14 };
-      });
-      // découpe en deux colonnes équilibrées
-      let split = items.length;
-      if (twoCols) {
-        let best = Infinity;
-        for (let i = 1; i < items.length; i++) {
-          const a = items.slice(0, i).reduce((s, it) => s + it.h, 0); const b = items.slice(i).reduce((s, it) => s + it.h, 0);
-          const m = Math.max(a, b); if (m < best && !items[i - 1].sec) { best = m; split = i; }
-        }
-      }
-      const cols = twoCols ? [items.slice(0, split), items.slice(split)] : [items];
-      const startY = y; let maxY = y;
-      cols.forEach((col, ci) => {
-        let yy = startY;
-        const x0 = twoCols ? X + ci * (colW + gap) : X + 40;
-        col.forEach((it) => {
-          if (it.sec) {
-            if (draw) { ctx.font = `700 40px ${FONT_H}`; ctx.fillStyle = T.accent; ctx.textAlign = 'left'; it.lines.forEach((l, i) => ctx.fillText(l, x0, yy + 34 + i * 42)); }
-            yy += it.h; return;
-          }
-          if (draw) {
-            ctx.fillStyle = T.accent; ctx.beginPath(); ctx.arc(x0 + 9, yy + 20, 7, 0, 7); ctx.fill();
-            ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-            it.lines.forEach((l, i) => {
-              const lx = x0 + 34; const ly = yy + 31 + i * 41;
-              if (i === 0 && it.qty && l.startsWith(it.qty)) {
-                ctx.font = `800 31px ${FONT_B}`; ctx.fillStyle = T.ink; ctx.fillText(it.qty, lx, ly);
-                const qw = ctx.measureText(it.qty + '  ').width;
-                ctx.font = `600 31px ${FONT_B}`; ctx.fillStyle = T.ink; ctx.fillText(l.slice(it.qty.length).trimStart(), lx + qw, ly);
-              } else { ctx.font = `600 31px ${FONT_B}`; ctx.fillStyle = T.ink; ctx.fillText(l, lx, ly); }
-            });
-          }
-          yy += it.h;
+        ctx.font = `400 29px ${SANS}`;
+        const full = qty ? `${qty} ${name}` : name;
+        const ls = wrap(ctx, full, LW - 6);
+        ls.forEach((l, i) => {
+          ly += 40;
+          if (!draw) return;
+          if (i === 0 && qty && l.startsWith(qty)) {
+            txt(qty, M, ly, `600 29px ${SANS}`, T.ink);
+            ctx.font = `600 29px ${SANS}`; const qw = ctx.measureText(qty + ' ').width;
+            txt(l.slice(qty.length).trimStart(), M + qw, ly, `400 29px ${SANS}`, T.ink);
+          } else txt(l, M, ly, `400 29px ${SANS}`, T.ink);
         });
-        maxY = Math.max(maxY, yy);
+        ly += 12;
+        if (draw) { ctx.fillStyle = T.line; ctx.globalAlpha = 0.6; ctx.fillRect(M, ly, LW, 1.5); ctx.globalAlpha = 1; }
       });
-      y = maxY + 40;
     }
 
-    // étapes
-    const steps = (r.steps || []).map((s) => (s || '').trim()).filter(Boolean);
     if (steps.length) {
-      section('Préparation', 'stepsTop');
+      const sx = twoCols ? RX : M; const sw = twoCols ? RW : CW;
+      if (!twoCols && ings.length) { ry = ly + 60; }
+      A.stepsTop = ry;
+      txt('Préparation', sx, ry + 40, `italic 400 46px ${SERIF_I}`, T.ink);
+      ry += 84;
       steps.forEach((s, i) => {
-        ctx.font = `600 31px ${FONT_B}`;
-        const ls = wrap(ctx, s, CW - 84);
-        if (draw) {
-          ctx.fillStyle = T.accent; ctx.beginPath(); ctx.arc(X + 26, y + 22, 26, 0, 7); ctx.fill();
-          ctx.fillStyle = '#fff'; ctx.font = `600 30px ${FONT_T}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), X + 26, y + 23);
-          ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = T.ink; ctx.font = `600 31px ${FONT_B}`;
-          ls.forEach((l, j) => ctx.fillText(l, X + 84, y + 33 + j * 43));
-        }
-        y += Math.max(52, ls.length * 43) + 26;
+        txt(String(i + 1).padStart(2, '0'), sx, ry + 34, `400 38px ${SERIF}`, T.accent);
+        ctx.font = `400 29px ${SANS}`;
+        const ls = wrap(ctx, s, sw - 76);
+        ls.forEach((l, j) => txt(l, sx + 76, ry + 30 + j * 42, `400 29px ${SANS}`, T.ink));
+        ry += Math.max(48, ls.length * 42) + 26;
       });
-      y += 20;
     }
+    if (twoCols && draw) { ctx.fillStyle = T.line; ctx.fillRect(M + LW + GAP / 2, startY + 8, 2, Math.max(ly, ry) - startY - 20); }
+    y = Math.max(ly, ry) + 44;
 
-    // astuce façon post-it
+    // astuce
     if ((r.notes || '').trim()) {
       A.notesTop = y;
-      ctx.font = `700 40px ${FONT_H}`;
-      const nw = CW - 40;
-      const ls = wrap(ctx, r.notes.trim(), nw - 70);
-      const nh = 92 + ls.length * 44 + 30;
+      ctx.font = `italic 400 34px ${SERIF_I}`;
+      const ls = wrap(ctx, r.notes.trim(), CW - 120);
+      const nh = 96 + ls.length * 46 + 26;
       if (draw) {
-        ctx.save(); ctx.translate(CX, y + nh / 2); ctx.rotate(0.9 * Math.PI / 180); ctx.translate(-CX, -(y + nh / 2));
-        ctx.shadowColor = 'rgba(110,84,70,.14)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
-        rr(ctx, CX - nw / 2, y, nw, nh, 14); ctx.fillStyle = T.note; ctx.fill(); ctx.shadowColor = 'transparent';
-        ctx.fillStyle = T.ink; ctx.textAlign = 'left'; ctx.font = `600 34px ${FONT_T}`; ctx.fillText('Mes astuces', CX - nw / 2 + 36, y + 62);
-        ctx.font = `700 40px ${FONT_H}`; ls.forEach((l, j) => ctx.fillText(l, CX - nw / 2 + 36, y + 112 + j * 44));
-        ctx.restore();
+        ctx.fillStyle = T.tint; rr(ctx, M, y, CW, nh, 8); ctx.fill();
+        ctx.fillStyle = T.accent; ctx.fillRect(M, y, 5, nh);
+        ctx.font = `600 20px ${SANS}`; spaced(ctx, 3); txt('LE PETIT PLUS', M + 54, y + 58, `600 20px ${SANS}`, T.accent); spaced(ctx, 0);
+        ls.forEach((l, j) => txt(l, M + 54, y + 112 + j * 46, `italic 400 34px ${SERIF_I}`, T.ink));
       }
-      y += nh + 40;
+      y += nh + 50;
     }
 
     // signature
-    const sign = (opts_sign()).trim();
-    y += 6;
+    rule(y); y += 60;
+    const sign = signature.trim();
     if (sign) {
-      if (draw) { ctx.font = `700 40px ${FONT_H}`; ctx.fillStyle = T.muted; ctx.textAlign = 'center'; ctx.fillText(sign, CX, y + 30); }
-      y += 54;
+      ctx.font = `500 20px ${SANS}`; spaced(ctx, 5);
+      txt(sign.toUpperCase(), W / 2, y, `500 20px ${SANS}`, T.soft, 'center');
+      spaced(ctx, 0);
+      y += 20;
     }
-    y += M + 40;
+    y += 70;
     A.height = y;
     return y;
   }
 
-  // signature affichée en bas des fiches (réglage)
   let signature = '';
-  const opts_sign = () => signature || '';
   const setSignature = (s) => { signature = s || ''; };
 
-  return { W, THEMES, render, fmtMin, fmtQty, ingText, setSignature, embeddedFonts, loadFonts };
+  return { W, THEMES, render, fmtMin, ingText, setSignature, loadFonts, loadImg };
 })();

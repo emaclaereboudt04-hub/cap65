@@ -1,11 +1,13 @@
 /* Mon carnet de recettes : service worker (hors ligne).
    « Réseau d'abord » : avec du réseau on prend la dernière version, sinon la copie enregistrée.
    Incrémente VERSION à chaque mise à jour. */
-const VERSION = 'recettes-v1';
+importScripts('illus.js');
+const VERSION = 'recettes-v2';
 const ASSETS = [
-  './', 'index.html', 'styles.css', 'stickers.js', 'card.js', 'app.js', 'manifest.json',
-  'fonts/fredoka.woff2', 'fonts/caveat.woff2', 'fonts/nunito.woff2',
+  './', 'index.html', 'styles.css', 'illus.js', 'card.js', 'app.js', 'manifest.json',
+  'fonts/fraunces.woff2', 'fonts/fraunces-italic.woff2', 'fonts/inter.woff2',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
+  ...ILLUS.list.map((s) => ILLUS.src(s.id)),
 ];
 
 self.addEventListener('install', (e) => {
