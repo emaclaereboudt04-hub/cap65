@@ -2,7 +2,7 @@
    « Réseau d'abord » : avec du réseau on prend la dernière version, sinon la copie enregistrée.
    Incrémente VERSION à chaque mise à jour. */
 importScripts('illus.js');
-const VERSION = 'recettes-v2';
+const VERSION = 'recettes-v3';
 const ASSETS = [
   './', 'index.html', 'styles.css', 'illus.js', 'card.js', 'app.js', 'manifest.json',
   'fonts/fraunces.woff2', 'fonts/fraunces-italic.woff2', 'fonts/inter.woff2',

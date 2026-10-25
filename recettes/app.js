@@ -4,7 +4,7 @@
    Données 100 % locales (IndexedDB). Aucune recette importée.
    ========================================================= */
 
-const APP_VERSION = '2.0';
+const APP_VERSION = '2.1';
 
 /* ---------------- Stockage ---------------- */
 const DB = (() => {
@@ -70,12 +70,16 @@ const ICON = {
   download: I('<path d="M12 4v11M8 11l4 4 4-4"/><path d="M5 19h14"/>'),
   sun: I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
   grip: I('<path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/>'),
+  eye: I('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
 };
 
 const CATEGORIES = ['Pâtisserie', 'Dessert', 'Gâteau', 'Biscuits', 'Viennoiserie', 'Petit-déjeuner', 'Entrée', 'Plat', 'Accompagnement', 'Soupe', 'Salade', 'Apéritif', 'Boisson', 'Sauce', 'Autre'];
 const UNITS = ['', 'g', 'kg', 'mg', 'ml', 'cl', 'dl', 'L', 'c. à s.', 'c. à c.', 'pincée', 'sachet', 'tasse', 'verre', 'tranche', 'gousse', 'botte', 'brin', 'feuille', 'pot', 'boîte', 'noix', 'filet'];
 
 /* illustration HTML */
+/* texte riche : **gras** */
+const rich = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*/g, '');
+const ptxt = (s) => esc(CARD.plain(s));
 const illus = (id, cls = '') => ILLUS.byId[id] ? `<img class="ill ${cls}" src="${ILLUS.src(id)}" alt="" draggable="false" loading="lazy">` : '';
 
 /* ---------------- Toast / feuilles ---------------- */
@@ -112,6 +116,7 @@ let cleanup = null;
 function route() {
   const [view, id] = location.hash.replace(/^#\/?/, '').split('/');
   closeSheet();
+  closeViewer();
   if (cleanup) { cleanup(); cleanup = null; }
   document.body.dataset.view = view || 'home';
   window.scrollTo(0, 0);
@@ -191,12 +196,12 @@ function renderList() {
   box.innerHTML = `
     ${feat ? `<a class="feature" href="#/r/${feat.id}">
       <div class="feature-img">${cardVisual(feat, true)}</div>
-      <div class="feature-txt"><span class="overline">Dernière recette</span><h2>${esc(feat.title)}</h2>${feat.subtitle ? `<p class="sub">${esc(feat.subtitle)}</p>` : ''}<p class="meta">${meta(feat)}</p></div>
+      <div class="feature-txt"><span class="overline">Dernière recette</span><h2>${ptxt(feat.title)}</h2>${feat.subtitle ? `<p class="sub">${ptxt(feat.subtitle)}</p>` : ''}<p class="meta">${meta(feat)}</p></div>
     </a>` : ''}
     <div class="grid">${list.map((r) => `
       <a class="rcard" href="#/r/${r.id}">
         <div class="rcard-img">${cardVisual(r)}${r.fav ? `<span class="fav-badge">${ICON.heart}</span>` : ''}</div>
-        <h3>${esc(r.title || 'Sans titre')}</h3>
+        <h3>${ptxt(r.title || 'Sans titre')}</h3>
         <p class="meta">${meta(r)}</p>
       </a>`).join('')}</div>`;
 }
@@ -229,8 +234,8 @@ function viewRecipe(id) {
     </div>
     <article class="r-body">
       <span class="overline accent">${esc(r.category || 'Recette')}</span>
-      <h1 class="r-title">${esc(r.title)}</h1>
-      ${r.subtitle ? `<p class="r-sub">${esc(r.subtitle)}</p>` : ''}
+      <h1 class="r-title">${ptxt(r.title)}</h1>
+      ${r.subtitle ? `<p class="r-sub">${rich(r.subtitle)}</p>` : ''}
       ${info.length ? `<dl class="r-info">${info.map(([l, v]) => `<div><dt>${l}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
 
       ${(r.ingredients || []).some((i) => i.n || i.q) ? `
@@ -244,27 +249,27 @@ function viewRecipe(id) {
       ${(r.steps || []).length ? `
       <section class="r-sec">
         <div class="r-sec-head"><h2>Préparation</h2></div>
-        <ol class="steps" id="steps">${r.steps.map((s, i) => `<li data-i="${i}"><span class="num">${String(i + 1).padStart(2, '0')}</span><p>${esc(s)}</p></li>`).join('')}</ol>
+        <ol class="steps" id="steps">${r.steps.map((s, i) => `<li data-i="${i}"><span class="num">${String(i + 1).padStart(2, '0')}</span><p>${rich(s)}</p></li>`).join('')}</ol>
       </section>` : ''}
 
-      ${r.notes ? `<aside class="r-note"><span class="overline accent">Le petit plus</span><p>${esc(r.notes)}</p></aside>` : ''}
+      ${r.notes ? `<aside class="r-note"><span class="overline accent">Le petit plus</span><p>${rich(r.notes)}</p></aside>` : ''}
       <p class="r-foot">Touche un ingrédient ou une étape pour le cocher pendant que tu cuisines.</p>
     </article>
     <div class="dock">
       <button class="dock-btn" id="btn-wake" aria-pressed="false">${ICON.sun}<span>Écran allumé</span></button>
-      <a class="dock-btn primary" href="#/fiche/${r.id}">${ICON.brush}<span>Fiche illustrée</span></a>
+      <button class="dock-btn primary" id="btn-fiche">${ICON.eye}<span>Voir la fiche</span></button>
     </div>`;
 
   const drawIngs = () => {
     const ul = $('#ings'); if (!ul) return;
     const mult = base ? n / base : 1;
     ul.innerHTML = (r.ingredients || []).map((it, i) => {
-      if (it.sec) return `<li class="sec">${esc(it.sec)}</li>`;
+      if (it.sec) return `<li class="sec">${ptxt(it.sec)}</li>`;
       if (!it.n && !it.q) return '';
       const t = CARD.ingText(it, mult);
-      return `<li data-i="${i}" class="${got.has(i) ? 'ok' : ''}"><span class="box">${ICON.check}</span><span class="q">${esc(t.qty)}</span><span class="n">${esc(t.name)}</span></li>`;
+      return `<li data-i="${i}" class="${got.has(i) ? 'ok' : ''}"><span class="box">${ICON.check}</span><span class="q">${esc(t.qty)}</span><span class="n">${rich(t.name)}</span></li>`;
     }).join('');
-    const sn = $('#sv-n'); if (sn) sn.textContent = `${n} ${r.servingsUnit || 'pers.'}`;
+    const sn = $('#sv-n'); if (sn) sn.textContent = CARD.servLabel(n, r.servingsUnit);
   };
   drawIngs();
   if (base) {
@@ -276,6 +281,7 @@ function viewRecipe(id) {
   const steps = $('#steps');
   if (steps) steps.onclick = (e) => { const li = e.target.closest('li[data-i]'); if (!li) return; const i = +li.dataset.i; done.has(i) ? done.delete(i) : done.add(i); li.classList.toggle('ok'); };
 
+  $('#btn-fiche').onclick = () => openViewer(r);
   $('#btn-fav').onclick = async () => {
     r.fav = !r.fav; await DB.put(r);
     $('#btn-fav').classList.toggle('fav-on', r.fav);
@@ -291,32 +297,86 @@ function viewRecipe(id) {
 }
 
 /* =========================================================
-   Atelier : fiche illustrée (décoration + export)
+   Fiche illustrée : rendu, aperçu, atelier, partage
    ========================================================= */
 const ficheCache = new Map();
 let cur = null;
 let deco = null;
-const ficheKey = (r) => `${r.updated}|${r.theme}|${prefs.signature}|${recipeNumber(r)}`;
+const ficheKey = (r) => `${r.updated}|${r.theme}|${r.layout || 'auto'}|${prefs.signature}|${recipeNumber(r)}`;
+const LAYOUTS = [['auto', 'Auto'], ['single', 'Une page'], ['double', 'Recto-verso']];
 
+/* fond de fiche (sans illustrations), pour l'atelier */
 async function getFiche(r) {
   const key = ficheKey(r);
   const c = ficheCache.get(r.id);
   if (c && c.key === key) return c;
   const out = await CARD.render(r, { scale: Math.min(2, Math.max(1, (window.devicePixelRatio || 1) * 420 / 1080)), number: recipeNumber(r) });
-  const blob = await new Promise((res) => out.canvas.toBlob(res, 'image/jpeg', 0.92));
-  if (c) URL.revokeObjectURL(c.url);
-  const v = { key, url: URL.createObjectURL(blob), height: out.height, anchors: out.anchors };
+  const pages = [];
+  for (const pg of out.pages) {
+    const blob = await new Promise((res) => pg.canvas.toBlob(res, 'image/jpeg', 0.92));
+    pages.push({ url: URL.createObjectURL(blob), height: pg.height, anchors: pg.anchors });
+  }
+  if (c) c.pages.forEach((pg) => URL.revokeObjectURL(pg.url));
+  const v = { key, mode: out.mode, pages };
   ficheCache.set(r.id, v);
   return v;
 }
 
+/* fiche finale (avec illustrations) en images */
+async function renderFinal(r, type = 'image/png', scale = 1) {
+  const out = await CARD.render(r, { withIllus: true, scale, number: recipeNumber(r) });
+  const files = [];
+  for (let i = 0; i < out.pages.length; i++) {
+    const blob = await new Promise((res, rej) => { try { out.pages[i].canvas.toBlob((b) => (b ? res(b) : rej(new Error('vide'))), type, 0.92); } catch (err) { rej(err); } });
+    const suffix = out.pages.length > 1 ? (i ? '-verso' : '-recto') : '';
+    files.push({ blob, url: URL.createObjectURL(blob), name: `${slug(r.title)}${suffix}.png`, label: out.pages.length > 1 ? (i ? 'Verso' : 'Recto') : '' });
+  }
+  return files;
+}
+
+/* --- aperçu plein écran --- */
+async function openViewer(r) {
+  closeViewer();
+  const v = document.createElement('div');
+  v.className = 'viewer'; v.id = 'viewer';
+  v.innerHTML = `
+    <div class="viewer-bar">
+      <button class="icon-btn glass" id="vw-close" aria-label="Fermer">${ICON.close}</button>
+      <span class="grow"></span>
+      <a class="btn small glass-btn" href="#/fiche/${r.id}" id="vw-edit">${ICON.brush}<span>Décorer</span></a>
+      <button class="btn small dark" id="vw-share">${ICON.share}<span>Partager</span></button>
+    </div>
+    <div class="viewer-pages" id="vw-pages"><span class="spinner light"></span></div>
+    <p class="viewer-hint">Touche la fiche pour zoomer</p>`;
+  document.body.appendChild(v);
+  document.body.classList.add('no-scroll');
+  requestAnimationFrame(() => v.classList.add('open'));
+  $('#vw-close').onclick = closeViewer;
+  $('#vw-edit').onclick = () => closeViewer();
+  $('#vw-share').onclick = () => { closeViewer(); openShare(r); };
+  let files = [];
+  try { files = await renderFinal(r, 'image/jpeg', Math.min(2, window.devicePixelRatio || 1)); } catch (err) { console.error(err); }
+  const box = $('#vw-pages'); if (!box) { files.forEach((f) => URL.revokeObjectURL(f.url)); return; }
+  v._files = files;
+  box.innerHTML = files.length ? files.map((f) => `<figure>${f.label ? `<figcaption>${f.label}</figcaption>` : ''}<img src="${f.url}" alt=""></figure>`).join('') : '<p>La fiche n\'a pas pu être créée.</p>';
+  box.onclick = (e) => { if (e.target.tagName === 'IMG') box.classList.toggle('zoom'); };
+}
+function closeViewer() {
+  const v = $('#viewer'); if (!v) return;
+  document.body.classList.remove('no-scroll');
+  v.classList.remove('open');
+  (v._files || []).forEach((f) => setTimeout(() => URL.revokeObjectURL(f.url), 500));
+  setTimeout(() => v.remove(), 250);
+}
+
+/* --- atelier --- */
 async function viewStudio(id) {
   const r = recipes.find((x) => x.id === id);
   if (!r) { go('#/'); return; }
   cur = r;
   r.stickers = (r.stickers || []).filter((s) => ILLUS.byId[s.id]);
-  deco = { sel: -1, ptrs: new Map(), g: null, tab: null, panel: 'ill' };
-  const sugg = ILLUS.suggest(r.title, (r.ingredients || []).map((i) => i.n || '').join(' '));
+  deco = { sel: -1, ptrs: new Map(), g: null, tab: null, mode: 'single' };
+  const sugg = ILLUS.suggest(CARD.plain(r.title), (r.ingredients || []).map((i) => i.n || '').join(' '));
   deco.sugg = sugg;
   deco.tab = sugg.length ? 'sugg' : ILLUS.CATS[0][0];
   const tabs = [...(sugg.length ? [['sugg', 'Suggestions']] : []), ...ILLUS.CATS];
@@ -324,14 +384,11 @@ async function viewStudio(id) {
   screen().innerHTML = `
     <div class="studio-bar">
       <a class="icon-btn plain" href="#/r/${r.id}" aria-label="Retour">${ICON.back}</a>
-      <div class="studio-title"><span class="overline">Fiche illustrée</span><b>${esc(r.title)}</b></div>
+      <div class="studio-title"><span class="overline">Fiche illustrée</span><b>${esc(CARD.plain(r.title))}</b></div>
+      <button class="icon-btn plain" id="btn-view" aria-label="Aperçu">${ICON.eye}</button>
       <button class="btn small dark" id="btn-export">${ICON.share}<span>Partager</span></button>
     </div>
-    <div class="stage-wrap"><div class="stage deco" id="stage">
-      <img class="fiche" id="fiche" alt="">
-      <div class="layer" id="layer"></div>
-      <div class="fiche-loading" id="fiche-loading"><span class="spinner"></span></div>
-    </div></div>
+    <div class="stages" id="stages"><div class="stage-loading"><span class="spinner"></span></div></div>
     <div class="panel" id="panel">
       <div class="tools" id="tools">
         <button data-a="smaller" aria-label="Plus petit">${ICON.minus}</button>
@@ -345,13 +402,17 @@ async function viewStudio(id) {
       </div>
       <div class="panel-switch" id="panel-switch">
         <button data-p="ill" class="on">Illustrations</button>
-        <button data-p="style">Papier</button>
+        <button data-p="style">Mise en page</button>
       </div>
       <div id="panel-ill">
         <nav class="tabs small" id="ill-tabs">${tabs.map(([k, l]) => `<button class="tab ${k === deco.tab ? 'on' : ''}" data-t="${k}">${l}</button>`).join('')}</nav>
         <div class="ill-grid" id="ill-grid"></div>
       </div>
       <div id="panel-style" hidden>
+        <span class="overline">Format</span>
+        <div class="seg wide" id="layouts">${LAYOUTS.map(([k, l]) => `<button data-l="${k}" class="${(r.layout || 'auto') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <p class="hint" id="layout-hint"></p>
+        <span class="overline">Papier</span>
         <div class="papers" id="papers">${Object.entries(CARD.THEMES).map(([k, t]) => `<button data-t="${k}" class="${themeOf(r) === t ? 'on' : ''}"><span style="background:${t.bg};--ac:${t.accent}"></span>${t.name}</button>`).join('')}</div>
         <button class="btn ghost small" id="clear-ill">${ICON.trash}<span>Retirer toutes les illustrations</span></button>
       </div>
@@ -373,67 +434,95 @@ async function viewStudio(id) {
   };
   $('#papers').onclick = async (e) => {
     const b = e.target.closest('button'); if (!b) return;
-    r.theme = b.dataset.t; r.updated = Date.now();
+    r.theme = b.dataset.t;
     $$('button', $('#papers')).forEach((x) => x.classList.toggle('on', x === b));
     await DB.put(r); refreshFiche();
   };
-  $('#clear-ill').onclick = () => { if (!r.stickers.length || !confirm('Retirer toutes les illustrations de la fiche ?')) return; r.stickers = []; deco.sel = -1; drawLayer(); saveIllus(); };
+  $('#layouts').onclick = async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    r.layout = b.dataset.l;
+    $$('button', $('#layouts')).forEach((x) => x.classList.toggle('on', x === b));
+    selectIll(-1);
+    await DB.put(r); refreshFiche();
+  };
+  $('#clear-ill').onclick = () => { if (!r.stickers.length || !confirm('Retirer toutes les illustrations de la fiche ?')) return; r.stickers = []; deco.sel = -1; drawLayers(); saveIllus(); };
   $('#tools').onclick = (e) => { const b = e.target.closest('button'); if (b) toolAction(b.dataset.a); };
   $('#btn-export').onclick = () => { selectIll(-1); openShare(r); };
-  const layer = $('#layer');
-  layer.addEventListener('pointerdown', onPtrDown);
-  layer.addEventListener('pointermove', onPtrMove);
-  layer.addEventListener('pointerup', onPtrUp);
-  layer.addEventListener('pointercancel', onPtrUp);
+  $('#btn-view').onclick = () => { selectIll(-1); openViewer(r); };
   const ro = new ResizeObserver(() => placeAll());
-  ro.observe($('#stage'));
-  cleanup = () => { ro.disconnect(); deco = null; cur = null; };
+  ro.observe($('#stages'));
+  cleanup = () => { ro.disconnect(); deco = null; cur = null; closeViewer(); };
   await refreshFiche();
-  drawLayer();
 }
 
 async function refreshFiche() {
   const r = cur; if (!r) return;
   const f = await getFiche(r);
-  if (cur !== r || !$('#fiche')) return;
-  const img = $('#fiche');
-  img.onload = () => { const l = $('#fiche-loading'); if (l) l.remove(); };
-  img.src = f.url;
-  $('#stage').style.aspectRatio = `${CARD.W} / ${f.height}`;
+  if (cur !== r || !$('#stages') || !deco) return;
+  deco.mode = f.mode;
+  const box = $('#stages');
+  box.innerHTML = f.pages.map((pg, i) => `
+    ${f.pages.length > 1 ? `<p class="stage-label">${i ? 'Verso' : 'Recto'}</p>` : ''}
+    <div class="stage" data-p="${i}" style="aspect-ratio:${CARD.W} / ${pg.height}">
+      <img class="fiche" src="${pg.url}" alt="">
+      <div class="layer"></div>
+    </div>`).join('');
+  $$('.layer', box).forEach((layer) => {
+    layer.addEventListener('pointerdown', onPtrDown);
+    layer.addEventListener('pointermove', onPtrMove);
+    layer.addEventListener('pointerup', onPtrUp);
+    layer.addEventListener('pointercancel', onPtrUp);
+  });
+  const hint = $('#layout-hint');
+  if (hint) hint.textContent = (r.layout || 'auto') === 'auto' ? (f.mode === 'double' ? 'Recette longue : la fiche passe en recto-verso.' : 'La fiche tient sur une page.') : '';
+  drawLayers();
 }
 
-function drawLayer() {
-  const layer = $('#layer'); if (!layer || !cur) return;
-  layer.innerHTML = cur.stickers.map((s, i) => `<div class="stk" data-i="${i}">${illus(s.id)}</div>`).join('');
+// en mode une page, on n'affiche que les illustrations du recto
+const pageOf = (s) => (deco && deco.mode === 'double' ? (s.p || 0) : ((s.p || 0) ? -1 : 0));
+function drawLayers() {
+  if (!cur || !deco) return;
+  $$('#stages .stage').forEach((stage) => {
+    const p = +stage.dataset.p;
+    $('.layer', stage).innerHTML = cur.stickers.map((s, i) => (pageOf(s) === p ? `<div class="stk" data-i="${i}">${illus(s.id)}</div>` : '')).join('');
+  });
   placeAll();
 }
 function place(el, s) {
-  const W = $('#stage').clientWidth;
+  const W = el.closest('.stage').clientWidth;
   el.style.left = (s.x * 100) + '%';
   el.style.top = (s.y * W) + 'px';
   el.style.width = (s.s * 100) + '%';
   el.style.transform = `translate(-50%, -50%) rotate(${s.r || 0}deg) scaleX(${s.f ? -1 : 1})`;
 }
 function placeAll() {
-  if (!cur || !$('#layer')) return;
-  $$('#layer .stk').forEach((el) => { const s = cur.stickers[+el.dataset.i]; if (s) place(el, s); });
+  if (!cur) return;
+  $$('#stages .stk').forEach((el) => { const s = cur.stickers[+el.dataset.i]; if (s) place(el, s); });
   markSel();
 }
 function markSel() {
-  $$('#layer .stk').forEach((el) => el.classList.toggle('sel', !!deco && +el.dataset.i === deco.sel));
+  $$('#stages .stk').forEach((el) => el.classList.toggle('sel', !!deco && +el.dataset.i === deco.sel));
   const t = $('#tools'); if (t) t.classList.toggle('show', !!deco && deco.sel >= 0);
 }
 function selectIll(i) { if (deco) { deco.sel = i; markSel(); } }
 const saveIllus = debounce(() => { if (cur) DB.put(cur); }, 400);
 
 function addIllus(id) {
-  const stage = $('#stage'); const rect = stage.getBoundingClientRect(); const W = rect.width;
-  const panel = $('#panel').getBoundingClientRect();
-  const top = Math.max(rect.top, 70); const bot = Math.min(rect.bottom, panel.top);
-  const cy = (top + bot) / 2 - rect.top;
-  const s = { id, x: 0.5 + (Math.random() - 0.5) * 0.3, y: Math.max(0.08, cy / W), s: ILLUS.byId[id].cat === 'deco' ? 0.24 : 0.22, r: Math.round((Math.random() - 0.5) * 16) };
+  const panelTop = $('#panel').getBoundingClientRect().top;
+  const mid = (70 + panelTop) / 2;
+  // la page la plus visible
+  let stage = null; let best = -1;
+  $$('#stages .stage').forEach((st) => {
+    const b = st.getBoundingClientRect();
+    const vis = Math.min(b.bottom, panelTop) - Math.max(b.top, 70);
+    if (vis > best) { best = vis; stage = st; }
+  });
+  if (!stage) return;
+  const rect = stage.getBoundingClientRect(); const W = rect.width;
+  const cy = Math.min(Math.max(mid, rect.top + 40), rect.bottom - 40) - rect.top;
+  const s = { id, p: +stage.dataset.p, x: 0.5 + (Math.random() - 0.5) * 0.3, y: Math.max(0.08, cy / W), s: ILLUS.byId[id].cat === 'deco' ? 0.24 : 0.22, r: Math.round((Math.random() - 0.5) * 16) };
   cur.stickers.push(s);
-  drawLayer();
+  drawLayers();
   selectIll(cur.stickers.length - 1);
   saveIllus();
   if (navigator.vibrate) navigator.vibrate(6);
@@ -447,9 +536,9 @@ function toolAction(a) {
   if (a === 'rotl') s.r = (s.r || 0) - 10;
   if (a === 'rotr') s.r = (s.r || 0) + 10;
   if (a === 'flip') s.f = !s.f;
-  if (a === 'dup') { cur.stickers.push({ ...s, x: Math.min(0.95, s.x + 0.06), y: s.y + 0.06 }); deco.sel = cur.stickers.length - 1; drawLayer(); }
-  if (a === 'front') { cur.stickers.splice(deco.sel, 1); cur.stickers.push(s); deco.sel = cur.stickers.length - 1; drawLayer(); }
-  if (a === 'del') { cur.stickers.splice(deco.sel, 1); deco.sel = -1; drawLayer(); }
+  if (a === 'dup') { cur.stickers.push({ ...s, x: Math.min(0.95, s.x + 0.06), y: s.y + 0.06 }); deco.sel = cur.stickers.length - 1; drawLayers(); }
+  if (a === 'front') { cur.stickers.splice(deco.sel, 1); cur.stickers.push(s); deco.sel = cur.stickers.length - 1; drawLayers(); }
+  if (a === 'del') { cur.stickers.splice(deco.sel, 1); deco.sel = -1; drawLayers(); }
   placeAll(); saveIllus();
 }
 
@@ -480,7 +569,8 @@ function onPtrMove(e) {
   e.preventDefault();
   deco.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   const s = cur.stickers[deco.sel]; if (!s) return;
-  const st = $('#stage'); const W = st.clientWidth; const H = st.clientHeight;
+  const el = $(`#stages .stk[data-i="${deco.sel}"]`); if (!el) return;
+  const st = el.closest('.stage'); const W = st.clientWidth; const H = st.clientHeight;
   const pts = [...deco.ptrs.values()]; const g = deco.g;
   if (pts.length >= 2 && g.d0) {
     const [a, b] = pts;
@@ -493,7 +583,7 @@ function onPtrMove(e) {
     s.x = g.s0.x + (e.clientX - g.p0.x) / W; s.y = g.s0.y + (e.clientY - g.p0.y) / W;
   }
   s.x = Math.min(1.02, Math.max(-0.02, s.x)); s.y = Math.min(H / W + 0.02, Math.max(-0.02, s.y));
-  const el = $(`#layer .stk[data-i="${deco.sel}"]`); if (el) place(el, s);
+  place(el, s);
 }
 function onPtrUp(e) {
   if (!deco || !deco.ptrs.has(e.pointerId)) return;
@@ -511,28 +601,25 @@ async function openShare(r) {
       <button class="btn primary" id="sh-send" disabled>${ICON.share}<span>Envoyer</span></button>
       <button class="btn" id="sh-dl" disabled>${ICON.download}<span>Télécharger</span></button>
     </div>
-    <p class="hint">« Envoyer » ouvre le menu de partage : Snapchat, Messages, WhatsApp, ou « Enregistrer l'image » pour la garder dans Photos.</p>`);
-  let file; let url;
-  try {
-    const out = await CARD.render(r, { withIllus: true, scale: 1, number: recipeNumber(r) });
-    const blob = await new Promise((res, rej) => { try { out.canvas.toBlob((b) => (b ? res(b) : rej(new Error('vide'))), 'image/png'); } catch (err) { rej(err); } });
-    file = new File([blob], `${slug(r.title)}.png`, { type: 'image/png' });
-    url = URL.createObjectURL(blob);
-  } catch (err) {
+    <p class="hint" id="sh-hint">« Envoyer » ouvre le menu de partage : Snapchat, Messages, WhatsApp, ou « Enregistrer l'image » pour la garder dans Photos.</p>`);
+  let files;
+  try { files = await renderFinal(r); } catch (err) {
     console.error(err);
     const p = $('#share-prev', sh); if (p) p.innerHTML = '<p>L\'image n\'a pas pu être créée.</p>';
     return;
   }
   const prev = $('#share-prev', sh);
-  if (!prev || sh.hidden) { URL.revokeObjectURL(url); return; }
-  prev.innerHTML = `<img src="${url}" alt="">`;
+  if (!prev || sh.hidden) { files.forEach((f) => URL.revokeObjectURL(f.url)); return; }
+  prev.innerHTML = files.map((f) => `${f.label ? `<span class="overline">${f.label}</span>` : ''}<img src="${f.url}" alt="">`).join('');
+  if (files.length > 1) $('#sh-hint', sh).textContent = 'Ta fiche est en recto-verso : les deux images partent ensemble. « Enregistrer les images » les garde dans Photos.';
+  const fileObjs = files.map((f) => new File([f.blob], f.name, { type: 'image/png' }));
   const send = $('#sh-send', sh); const dl = $('#sh-dl', sh);
   send.disabled = false; dl.disabled = false;
-  const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+  const canShare = !!(navigator.canShare && navigator.canShare({ files: fileObjs }));
   if (!canShare) send.hidden = true;
-  send.onclick = async () => { try { await navigator.share({ files: [file] }); } catch (err) { if (err && err.name !== 'AbortError') download(url, file.name); } };
-  dl.onclick = () => download(url, file.name);
-  sheetClose = () => setTimeout(() => URL.revokeObjectURL(url), 1000);
+  send.onclick = async () => { try { await navigator.share({ files: fileObjs }); } catch (err) { if (err && err.name !== 'AbortError') files.forEach((f) => download(f.url, f.name)); } };
+  dl.onclick = () => files.forEach((f, i) => setTimeout(() => download(f.url, f.name), i * 400));
+  sheetClose = () => setTimeout(() => files.forEach((f) => URL.revokeObjectURL(f.url)), 1000);
 }
 function download(url, name) { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
 
@@ -597,6 +684,7 @@ function viewEdit(id) {
       </div>
 
       <h2 class="group-title">Préparation</h2>
+      <p class="group-hint">Astuce : sélectionne un mot et touche <b>G</b> au-dessus du clavier pour le mettre en gras.</p>
       <div class="group">
         <div id="steps"></div>
         <div class="add-row"><button type="button" class="chip-btn" id="add-step">${ICON.plus}Étape</button></div>
@@ -696,6 +784,31 @@ function viewEdit(id) {
     toast('Recette supprimée'); go('#/');
   };
 
+  // --- barre « gras » au-dessus du clavier
+  const isRich = (el) => el && (el.matches('#steps textarea, #f-notes, #ings .n, #f-sub'));
+  const bar = document.createElement('div');
+  bar.className = 'fmt-bar'; bar.hidden = true;
+  bar.innerHTML = `<button type="button" id="fmt-b" aria-label="Gras"><b>G</b></button><span>Sélectionne un mot puis touche <b>G</b> pour le mettre en gras</span>`;
+  document.body.appendChild(bar);
+  let field = null; let hideT;
+  const placeBar = () => {
+    const vv = window.visualViewport;
+    const top = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    bar.style.top = (top - bar.offsetHeight - 8) + 'px';
+  };
+  const onFocus = (e) => { if (!isRich(e.target)) return; clearTimeout(hideT); field = e.target; bar.hidden = false; placeBar(); };
+  const onBlur = () => { clearTimeout(hideT); hideT = setTimeout(() => { if (isRich(document.activeElement)) return; bar.hidden = true; field = null; }, 150); };
+  const onSel = () => { const a = document.activeElement; if (isRich(a)) onFocus({ target: a }); };
+  screen().addEventListener('focusin', onFocus);
+  screen().addEventListener('focusout', onBlur);
+  document.addEventListener('selectionchange', onSel);
+  if (window.visualViewport) { visualViewport.addEventListener('resize', placeBar); visualViewport.addEventListener('scroll', placeBar); }
+  const fb = $('#fmt-b', bar);
+  fb.addEventListener('pointerdown', (e) => e.preventDefault());
+  fb.addEventListener('mousedown', (e) => e.preventDefault());
+  fb.addEventListener('click', () => { if (field) { toggleBold(field); field.focus(); } });
+  cleanup = () => { bar.remove(); document.removeEventListener('selectionchange', onSel); screen().removeEventListener('focusin', onFocus); screen().removeEventListener('focusout', onBlur); if (window.visualViewport) { visualViewport.removeEventListener('resize', placeBar); visualViewport.removeEventListener('scroll', placeBar); } };
+
   const save = async (e) => {
     if (e) e.preventDefault();
     if (!r.title.trim()) { toast('Donne un nom à ta recette'); $('#f-title').focus(); return; }
@@ -721,6 +834,29 @@ function viewEdit(id) {
 
 function focusLast(sel) { const all = $$(sel); const el = all[all.length - 1]; if (el) el.focus(); }
 function autoGrow(t) { if (!t) return; t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
+
+/* met en gras (ou enlève le gras) la sélection, ou le mot sous le curseur */
+function toggleBold(el) {
+  const v = el.value; let a = el.selectionStart; let b = el.selectionEnd;
+  if (a === b) {
+    while (a > 0 && !/\s/.test(v[a - 1])) a--;
+    while (b < v.length && !/\s/.test(v[b])) b++;
+    if (a === b) { el.setRangeText('****', a, b, 'end'); el.setSelectionRange(a + 2, a + 2); el.dispatchEvent(new Event('input', { bubbles: true })); return; }
+  }
+  // on garde les espaces hors du gras
+  while (a < b && /\s/.test(v[a])) a++;
+  while (b > a && /\s/.test(v[b - 1])) b--;
+  const sel = v.slice(a, b);
+  if (sel.startsWith('**') && sel.endsWith('**') && sel.length >= 4) {
+    el.setRangeText(sel.slice(2, -2), a, b, 'select');
+  } else if (v.slice(a - 2, a) === '**' && v.slice(b, b + 2) === '**') {
+    el.setRangeText(sel, a - 2, b + 2, 'select');
+  } else {
+    const clean = sel.replace(/\*\*/g, '');
+    el.setRangeText(`**${clean}**`, a, b, 'select');
+  }
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
 
 function parseIngredients(text) {
   const unitMap = [
@@ -760,16 +896,17 @@ async function processPhoto(file) {
 
 /* Illustrations posées automatiquement sur une nouvelle fiche */
 async function autoIllus(r) {
-  const sugg = ILLUS.suggest(r.title, (r.ingredients || []).map((i) => i.n || '').join(' ')).filter((id) => ILLUS.byId[id].cat !== 'deco');
+  const sugg = ILLUS.suggest(CARD.plain(r.title), (r.ingredients || []).map((i) => i.n || '').join(' ')).filter((id) => ILLUS.byId[id].cat !== 'deco');
   const fallback = { 'Pâtisserie': ['fouet', 'farine'], 'Dessert': ['cerises', 'fouet'], 'Gâteau': ['gateau', 'fouet'], 'Biscuits': ['cookies', 'rouleau'], 'Viennoiserie': ['croissant', 'beurre'], 'Petit-déjeuner': ['pancakes', 'cafe'], 'Boisson': ['citronnade', 'citron-tranche'], 'Soupe': ['soupe', 'carottes'], 'Salade': ['salade', 'tomate'], 'Apéritif': ['vin', 'fromage'], 'Sauce': ['casserole', 'basilic'] }[r.category] || ['ustensiles', 'basilic'];
   const pool = [...new Set([...sugg, ...fallback])];
   const out = await CARD.render(r, {});
-  const A = out.anchors; const W = CARD.W;
+  const A = out.pages[0].anchors; const W = CARD.W;
   const st = [];
-  if (pool[0]) st.push({ id: pool[0], x: 0.83, y: (A.titleTop + 30) / W, s: 0.24, r: 8 });
+  if (pool[0]) st.push({ id: pool[0], p: 0, x: 0.83, y: (A.titleTop + 30) / W, s: 0.24, r: 8 });
   if (pool[1]) {
-    if (A.photoBottom) st.push({ id: pool[1], x: 0.13, y: (A.photoBottom - 10) / W, s: 0.2, r: -10 });
-    else if (A.stepsTop) st.push({ id: pool[1], x: 0.86, y: (A.height - 200) / W, s: 0.2, r: -6 });
+    if (out.mode === 'double') st.push({ id: pool[1], p: 1, x: 0.84, y: (out.pages[1].anchors.stepsTop + 20) / W, s: 0.2, r: -8 });
+    else if (A.photoBottom) st.push({ id: pool[1], p: 0, x: 0.13, y: (A.photoBottom - 10) / W, s: 0.2, r: -10 });
+    else if (A.stepsTop) st.push({ id: pool[1], p: 0, x: 0.86, y: (out.pages[0].height - 260) / W, s: 0.2, r: -6 });
   }
   return st;
 }

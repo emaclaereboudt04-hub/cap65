@@ -170,8 +170,7 @@ var DESSINS = [];
   add('baguette', 'Pain', 'patisserie', ['pain', 'baguette', 'boulangerie', 'sandwich', 'tartine', 'levain'],
     `<path d="M10 82 C4 76 8 68 16 62 L66 18 C74 12 84 12 88 18 C92 24 88 32 82 38 L34 84 C26 90 16 88 10 82Z" fill="#D7974C"/>
      <path class="np" d="M82 38 C76 44 50 70 34 84 C26 90 16 88 10 82 C30 74 60 46 82 38Z" fill="#B97733" opacity=".5"/>
-     ${[[28, 66], [42, 53], [56, 40], [70, 28]].map(([x, y]) => `<path d="M${x - 6} ${y + 4} C${x - 4} ${y - 3} ${x + 3} ${y - 7} ${x + 8} ${y - 6} C${x + 6} ${y + 1} ${x} ${y + 5} ${x - 6} ${y + 4}Z" fill="#F0CF92"/>`).join('')}
-     <path d="M30 26 C24 20 30 12 38 14 C44 16 46 24 40 30" stroke="#D9C49A" stroke-width="0" fill="none"/>`);
+     ${[[28, 66], [42, 53], [56, 40], [70, 28]].map(([x, y]) => `<path d="M${x - 6} ${y + 4} C${x - 4} ${y - 3} ${x + 3} ${y - 7} ${x + 8} ${y - 6} C${x + 6} ${y + 1} ${x} ${y + 5} ${x - 6} ${y + 4}Z" fill="#F0CF92"/>`).join('')}`);
 
   add('pancake-stack', 'Gaufres', 'patisserie', ['gaufre', 'waffle', 'brunch'],
     `<g transform="rotate(-8 50 52)"><rect x="16" y="18" width="68" height="68" rx="12" fill="#E2AE62"/>
